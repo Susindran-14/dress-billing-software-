@@ -731,6 +731,70 @@ body {
   margin-top: 4px;
 }
 
+.quick-action-strip {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-action-btn {
+  flex: 1;
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mini-action-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.mobile-bottom-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: none;
+  width: min(92vw, 360px);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(10px);
+  padding: 8px;
+  gap: 8px;
+  z-index: 2100;
+}
+
+.dock-btn {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  height: 42px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.dock-primary { background: linear-gradient(135deg, #4f46e5, #6366f1); }
+.dock-secondary { background: linear-gradient(135deg, #0f766e, #14b8a6); }
+.dock-success { background: linear-gradient(135deg, #15803d, #22c55e); }
+
 .btn-action-checkout {
   height: 42px;
   border-radius: 10px;
@@ -1510,6 +1574,21 @@ body {
   .checkout-btn-group {
     grid-template-columns: 1.2fr 1.8fr 0.8fr;
     gap: 6px;
+  }
+
+  .quick-action-strip {
+    display: flex;
+    margin-top: 10px;
+  }
+
+  .mini-action-btn {
+    flex: 1;
+    min-height: 30px;
+    font-size: 10px;
+  }
+
+  .mobile-bottom-dock {
+    display: flex;
   }
 
   .btn-action-checkout {

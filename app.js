@@ -4710,18 +4710,64 @@ function initRemoteScannerSync() {
   }
 }
 
+function normalizeScanValue(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .toUpperCase();
+}
+
+function findProductByScanValue(value) {
+  const input = normalizeScanValue(value);
+  if (!input) return null;
+
+  const directMatch = state.products.find(product => {
+    const productBarcode = normalizeScanValue(product.barcode);
+    const productSku = normalizeScanValue(product.sku);
+    return productBarcode === input || productSku === input;
+  });
+
+  if (directMatch) return directMatch;
+
+  const numericInput = input.replace(/[^0-9]/g, "");
+  if (numericInput) {
+    const numericMatch = state.products.find(product => {
+      const barcodeDigits = normalizeScanValue(product.barcode).replace(/[^0-9]/g, "");
+      const skuDigits = normalizeScanValue(product.sku).replace(/[^0-9]/g, "");
+      return barcodeDigits === numericInput || skuDigits === numericInput || barcodeDigits.endsWith(numericInput) || skuDigits.endsWith(numericInput);
+    });
+
+    if (numericMatch) return numericMatch;
+  }
+
+  const containsMatch = state.products.find(product => {
+    const productBarcode = normalizeScanValue(product.barcode);
+    const productSku = normalizeScanValue(product.sku);
+    return productBarcode.includes(input) || productSku.includes(input) || input.includes(productBarcode) || input.includes(productSku);
+  });
+
+  return containsMatch || null;
+}
+
 function handleRemoteScannedBarcode(barcode) {
-  const item = state.products.find(p => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase());
+  try {
+    const item = findProductByScanValue(barcode);
 
-  // Play alert beep on PC speaker
-  playNotificationBeep();
+    // Play alert beep on PC speaker
+    playNotificationBeep();
 
-  if (item) {
-    addCartItemBySku(item.sku);
-    renderPosCatalog();
-    showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
-  } else {
-    showToast(`Cloud Scanned Unknown Barcode: "${barcode}"`, "warning");
+    if (item) {
+      addCartItemBySku(item.sku);
+      renderPosCatalog();
+      showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
+    } else {
+      showToast(`Cloud Scanned Unknown Barcode: "${String(barcode || "").trim()}"`, "warning");
+    }
+  } catch (error) {
+    console.error("Remote scanned barcode handler error:", error);
+    showToast("Barcode scan could not be processed. Please retry.", "error");
   }
 }
 
@@ -4755,58 +4801,69 @@ function startMobileCameraScanning() {
   let isScanningActive = true;
 
   const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-    if (!isScanningActive) return;
-
-    // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
-    isScanningActive = false;
-
     try {
-      html5QrReader.pause(true);
-    } catch (e) { }
+      if (!isScanningActive) return;
 
-    // Send barcode immediately to ntfy.sh pubsub topic
-    const topicUrl = "https://ntfy.sh/tamildresspos_" + targetPeerId;
+      const normalizedText = normalizeScanValue(decodedText);
+      if (!normalizedText) return;
 
-    fetch(topicUrl, {
-      method: "POST",
-      body: decodedText
-    })
-      .then(() => {
-        // Play confirmations audio on mobile phone
-        playNotificationBeep();
+      // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
+      isScanningActive = false;
 
-        if (lastScannedEl) {
-          lastScannedEl.style.display = "block";
+      try {
+        html5QrReader.pause(true);
+      } catch (e) { }
 
-          // Display matched catalog product name locally for confirmation
-          const product = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
-          if (product) {
-            lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SENT:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
-          } else {
-            lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${decodedText}</code>`;
-          }
-        }
+      // Send barcode immediately to ntfy.sh pubsub topic
+      const topicUrl = "https://ntfy.sh/tamildresspos_" + targetPeerId;
 
-        // Resume scanning after 1.8 seconds
-        setTimeout(() => {
-          isScanningActive = true;
-          try {
-            html5QrReader.resume();
-          } catch (e) { }
-        }, 1800);
+      fetch(topicUrl, {
+        method: "POST",
+        body: normalizedText
       })
-      .catch(err => {
-        console.error("Failed to transmit scan:", err);
-        alert("Transmitting Scan Error: Please check your mobile data connection.");
+        .then(() => {
+          // Play confirmations audio on mobile phone
+          playNotificationBeep();
 
-        // Still resume scanning after error delay so user can try again
-        setTimeout(() => {
-          isScanningActive = true;
-          try {
-            html5QrReader.resume();
-          } catch (e) { }
-        }, 1800);
-      });
+          if (lastScannedEl) {
+            lastScannedEl.style.display = "block";
+
+            // Display matched catalog product name locally for confirmation
+            const product = findProductByScanValue(normalizedText);
+            if (product) {
+              lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SENT:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
+            } else {
+              lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${normalizedText}</code>`;
+            }
+          }
+
+          // Resume scanning after 1.8 seconds
+          setTimeout(() => {
+            isScanningActive = true;
+            try {
+              html5QrReader.resume();
+            } catch (e) { }
+          }, 1800);
+        })
+        .catch(err => {
+          console.error("Failed to transmit scan:", err);
+          alert("Transmitting Scan Error: Please check your mobile data connection.");
+
+          // Still resume scanning after error delay so user can try again
+          setTimeout(() => {
+            isScanningActive = true;
+            try {
+              html5QrReader.resume();
+            } catch (e) { }
+          }, 1800);
+        });
+    } catch (error) {
+      console.error("Mobile scan callback error:", error);
+      isScanningActive = true;
+      try {
+        html5QrReader.resume();
+      } catch (e) { }
+    }
   };
 
   const config = { fps: 15, qrbox: { width: 260, height: 190 } };
@@ -5002,55 +5059,61 @@ function toggleDirectCameraScan(open = true) {
       const scanCooldownMs = 1800;
 
       const qrSuccess = (decodedText) => {
-        const normalizedText = String(decodedText || "").trim();
-        const now = Date.now();
+        try {
+          const normalizedText = normalizeScanValue(decodedText);
+          const now = Date.now();
 
-        if (!isScanningActive || !normalizedText) return;
-        if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+          if (!isScanningActive || !normalizedText) return;
+          if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
 
-        isScanningActive = false;
-        lastProcessedBarcode = normalizedText;
-        lastProcessedAt = now;
+          isScanningActive = false;
+          lastProcessedBarcode = normalizedText;
+          lastProcessedAt = now;
 
-        try { directQrReader.pause(true); } catch (e) { }
+          try { directQrReader.pause(true); } catch (e) { }
 
-        const item = state.products.find(p => p.barcode === normalizedText || p.sku.toLowerCase() === normalizedText.toLowerCase());
-        playNotificationBeep();
+          const item = findProductByScanValue(normalizedText);
+          playNotificationBeep();
 
-        if (item) {
-          addCartItemBySku(item.sku);
-          renderPosCatalog();
-          showToast(`Scanned: "${item.name}" added to cart!`, "success");
-        } else {
-          showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
-        }
-
-        const searchInput = document.getElementById("pos-barcode-input");
-        if (searchInput) {
-          searchInput.value = normalizedText;
-          setTimeout(() => { searchInput.value = ""; }, 1200);
-        }
-
-        if (scanResult) {
-          scanResult.style.display = "block";
-          scanResult.innerHTML = item
-            ? `<span style="color:#34d399; font-weight:800;">✓ ADDED TO CART</span><br><span style="color:#f8fafc;">${item.name}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`
-            : `<span style="color:#fbbf24; font-weight:800;">⚠ UNKNOWN BARCODE</span><br><span style="color:#f8fafc;">${normalizedText}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`;
-        }
-
-        switchMobilePosTab("cart");
-
-        setTimeout(() => {
-          if (mobileOverlay) {
-            mobileOverlay.style.display = "none";
+          if (item) {
+            addCartItemBySku(item.sku);
+            renderPosCatalog();
+            showToast(`Scanned: "${item.name}" added to cart!`, "success");
+          } else {
+            showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
           }
+
+          const searchInput = document.getElementById("pos-barcode-input");
+          if (searchInput) {
+            searchInput.value = normalizedText;
+            setTimeout(() => { searchInput.value = ""; }, 1200);
+          }
+
+          if (scanResult) {
+            scanResult.style.display = "block";
+            scanResult.innerHTML = item
+              ? `<span style="color:#34d399; font-weight:800;">✓ ADDED TO CART</span><br><span style="color:#f8fafc;">${item.name}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`
+              : `<span style="color:#fbbf24; font-weight:800;">⚠ UNKNOWN BARCODE</span><br><span style="color:#f8fafc;">${normalizedText}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`;
+          }
+
+          switchMobilePosTab("cart");
+
+          setTimeout(() => {
+            if (mobileOverlay) {
+              mobileOverlay.style.display = "none";
+            }
+            isScanningActive = true;
+            try { directQrReader.resume(); } catch (e) { }
+            if (mobileStatus) {
+              mobileStatus.innerText = "Scanning barcode...";
+              mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
+            }
+          }, 900);
+        } catch (error) {
+          console.error("Direct camera scan handler error:", error);
           isScanningActive = true;
           try { directQrReader.resume(); } catch (e) { }
-          if (mobileStatus) {
-            mobileStatus.innerText = "Scanning barcode...";
-            mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
-          }
-        }, 900);
+        }
       };
 
       const config = { fps: 10, qrbox: { width: 260, height: 190 } };
@@ -5098,43 +5161,49 @@ function toggleDirectCameraScan(open = true) {
     const scanCooldownMs = 1800;
 
     const qrSuccess = (decodedText) => {
-      const normalizedText = String(decodedText || "").trim();
-      const now = Date.now();
+      try {
+        const normalizedText = normalizeScanValue(decodedText);
+        const now = Date.now();
 
-      if (!isScanningActive || !normalizedText) return;
-      if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+        if (!isScanningActive || !normalizedText) return;
+        if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
 
-      isScanningActive = false;
-      lastProcessedBarcode = normalizedText;
-      lastProcessedAt = now;
+        isScanningActive = false;
+        lastProcessedBarcode = normalizedText;
+        lastProcessedAt = now;
 
-      try { directQrReader.pause(true); } catch (e) { }
+        try { directQrReader.pause(true); } catch (e) { }
 
-      const item = state.products.find(p => p.barcode === normalizedText || p.sku.toLowerCase() === normalizedText.toLowerCase());
-      playNotificationBeep();
+        const item = findProductByScanValue(normalizedText);
+        playNotificationBeep();
 
-      if (item) {
-        addCartItemBySku(item.sku);
-        renderPosCatalog();
-        showToast(`Scanned: "${item.name}" added to cart!`, "success");
-      } else {
-        showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
-      }
+        if (item) {
+          addCartItemBySku(item.sku);
+          renderPosCatalog();
+          showToast(`Scanned: "${item.name}" added to cart!`, "success");
+        } else {
+          showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
+        }
 
-      const searchInput = document.getElementById("pos-barcode-input");
-      if (searchInput) {
-        searchInput.value = normalizedText;
-        setTimeout(() => { searchInput.value = ""; }, 1500);
-      }
+        const searchInput = document.getElementById("pos-barcode-input");
+        if (searchInput) {
+          searchInput.value = normalizedText;
+          setTimeout(() => { searchInput.value = ""; }, 1500);
+        }
 
-      if (window.innerWidth <= 768) {
-        switchMobilePosTab("cart");
-      }
+        if (window.innerWidth <= 768) {
+          switchMobilePosTab("cart");
+        }
 
-      setTimeout(() => {
+        setTimeout(() => {
+          isScanningActive = true;
+          try { directQrReader.resume(); } catch (e) { }
+        }, scanCooldownMs);
+      } catch (error) {
+        console.error("Inline direct scan handler error:", error);
         isScanningActive = true;
         try { directQrReader.resume(); } catch (e) { }
-      }, scanCooldownMs);
+      }
     };
 
     const config = { fps: 10, qrbox: { width: 220, height: 160 } };

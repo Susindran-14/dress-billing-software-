@@ -321,10 +321,22 @@
                   <i class="fa-solid fa-camera"></i> Scan Next Item
                 </button>
                 <button class="btn-action-checkout btn-pay" onclick="openPaymentModal()">
-                  <i class="fa-solid fa-print"></i> PAY & PRINT
+                  <i class="fa-solid fa-print"></i> Pay & Print
                 </button>
                 <button class="btn-action-checkout btn-wa" onclick="openWhatsAppModal()">
                   <i class="fa-brands fa-whatsapp"></i> WA
+                </button>
+              </div>
+
+              <div class="quick-action-strip">
+                <button class="mini-action-btn" onclick="toggleDirectCameraScan(true)">
+                  <i class="fa-solid fa-barcode"></i> Scan
+                </button>
+                <button class="mini-action-btn" onclick="holdCurrentBill()">
+                  <i class="fa-solid fa-pause"></i> Hold
+                </button>
+                <button class="mini-action-btn" onclick="clearCurrentBill()">
+                  <i class="fa-solid fa-broom"></i> Clear
                 </button>
               </div>
             </div>
@@ -1116,6 +1128,21 @@
 
     </div>
 
+  </div>
+
+  <div class="mobile-bottom-dock" id="mobile-bottom-dock">
+    <button class="dock-btn dock-primary" onclick="toggleDirectCameraScan(true)">
+      <i class="fa-solid fa-camera"></i>
+      <span>Scan</span>
+    </button>
+    <button class="dock-btn dock-secondary" onclick="openPaymentModal()">
+      <i class="fa-solid fa-wallet"></i>
+      <span>Pay</span>
+    </button>
+    <button class="dock-btn dock-success" onclick="openWhatsAppModal()">
+      <i class="fa-brands fa-whatsapp"></i>
+      <span>WA</span>
+    </button>
   </div>
 
   <!-- ==========================================================================
