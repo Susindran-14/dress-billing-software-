@@ -983,7 +983,10 @@
         <div class="card-box">
           <div class="card-box-header">
             <h3>Barcode Tag Manager & Print Sheets</h3>
-            <button class="btn-action-checkout btn-pay" style="height:32px; font-size:11px;" onclick="printSelectedBarcodes()"><i class="fa-solid fa-print"></i> Print Selected Labels</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-action-checkout btn-pay" style="height:32px; font-size:11px;" onclick="printSelectedBarcodes()"><i class="fa-solid fa-print"></i> Print Selected Labels</button>
+              <button class="btn-action-checkout" style="height:32px; font-size:11px; background:var(--bg-card-subtle); color:var(--text-main); border:1px solid var(--border);" onclick="printAllBarcodes()"><i class="fa-solid fa-layer-group"></i> Print All Labels</button>
+            </div>
           </div>
           <div style="display:flex; gap:10px; margin-bottom:12px;">
             <input type="text" id="barcode-mgmt-search" class="form-control" placeholder="Search by name, SKU, or barcode..." oninput="renderBarcodeMgmtList()">

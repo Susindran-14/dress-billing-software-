@@ -4005,6 +4005,23 @@ function printSelectedBarcodes() {
   triggerLabelsPrintSheet(printList);
 }
 
+function printAllBarcodes() {
+  const printList = state.products
+    .filter(p => !p.isArchived)
+    .map(p => {
+      const qtyInput = document.getElementById(`label-qty-${p.sku}`);
+      const labelQty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
+      return { product: p, qty: labelQty };
+    });
+
+  if (printList.length === 0) {
+    showToast("No active product variants found in catalog to print.", "warning");
+    return;
+  }
+
+  triggerLabelsPrintSheet(printList);
+}
+
 function triggerLabelsPrintSheet(labelItems) {
   const storeName = state.settings.storeName || "TAMIL DRESS COLLECTION";
 
@@ -4012,17 +4029,26 @@ function triggerLabelsPrintSheet(labelItems) {
   let labelsHtml = "";
   labelItems.forEach(item => {
     const p = item.product;
+    // Calculate a crossed out retail MRP (sellingPrice + 35% markup fallback if not set)
+    const mrpVal = p.mrp && p.mrp > p.sellingPrice ? p.mrp : Math.round(p.sellingPrice * 1.35);
+
     for (let i = 0; i < item.qty; i++) {
       labelsHtml += `
         <div class="barcode-tag-card">
-          <div class="store">${storeName}</div>
-          <div class="title">${p.name}</div>
-          <div class="details">SKU: ${p.sku} | Size: ${p.size} | Color: ${p.color}</div>
-          <div style="text-align: center; margin: 4px 0;">
-            <img src="https://barcodeapi.org/api/128/${p.barcode}" alt="${p.barcode}" style="height: 35px; max-width: 100%; display: block; margin: 0 auto;">
+          <div class="tag-header">${storeName}</div>
+          <div class="tag-title">${p.name}</div>
+          <div class="tag-meta">SKU: ${p.sku} | Size: ${p.size}</div>
+          
+          <div class="barcode-wrapper">
+            <img class="barcode-img" src="https://barcodeapi.org/api/128/${p.barcode}" alt="${p.barcode}">
+            <div class="barcode-digits">${p.barcode}</div>
           </div>
-          <div class="barcode-digits" style="letter-spacing: 3px; font-weight: 700; margin-bottom: 3px;">${p.barcode}</div>
-          <div class="price">SELL PRICE: <b>₹${p.sellingPrice}.00</b></div>
+          
+          <div class="price-section">
+            <span class="mrp-cross">MRP: ₹${mrpVal}</span>
+            <span class="sell-price">RATE: <b>₹${p.sellingPrice}</b></span>
+          </div>
+          <div class="tag-footer">Made in India | Salem Branch</div>
         </div>
       `;
     }
@@ -4034,26 +4060,146 @@ function triggerLabelsPrintSheet(labelItems) {
       <head>
         <title>Barcode Label Sheets Print</title>
         <style>
-          body { font-family: 'Courier New', monospace; padding: 20px; background: #ffffff; color: #000000; }
-          .labels-container { display: flex; flex-wrap: wrap; gap: 15px; }
-          .barcode-tag-card {
-            width: 58mm;
-            border: 1px dashed #000000;
-            padding: 8px;
-            text-align: center;
-            font-size: 10px;
-            box-sizing: border-box;
-            background: #fff;
+          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
+          
+          body { 
+            margin: 0; 
+            padding: 10px; 
+            background: #ffffff; 
+            color: #000000; 
+            font-family: 'Outfit', sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-          .barcode-tag-card .store { font-weight: bold; font-size: 11px; margin-bottom: 2px; }
-          .barcode-tag-card .title { font-weight: 600; margin-bottom: 2px; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-          .barcode-tag-card .details { font-size: 8px; color: #333; margin-bottom: 3px; }
-          .barcode-tag-card .barcode-style { font-family: 'Libre Barcode 39', 'Courier New', monospace; font-size: 24px; margin: 4px 0; }
-          .barcode-tag-card .barcode-digits { font-size: 9px; letter-spacing: 2px; margin-bottom: 3px; }
-          .barcode-tag-card .price { font-size: 11px; margin-top: 2px; border-top: 1px solid #000; padding-top: 2px; }
+          
+          /* Labels layout grid */
+          .labels-container { 
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(50mm, 1fr));
+            gap: 12px;
+            justify-content: center;
+          }
+          
+          /* Professional 50mm x 38mm Barcode Sticker */
+          .barcode-tag-card {
+            width: 50mm;
+            height: 38mm;
+            border: 1px solid #000000;
+            border-radius: 4px;
+            padding: 6px 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            background: #ffffff;
+            page-break-inside: avoid;
+            text-align: center;
+            overflow: hidden;
+          }
+          
+          .tag-header { 
+            font-size: 8px; 
+            font-weight: 800; 
+            letter-spacing: 0.8px; 
+            text-transform: uppercase; 
+            color: #000;
+            border-bottom: 0.5px solid #000;
+            width: 90%;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+          }
+          
+          .tag-title { 
+            font-size: 9px; 
+            font-weight: 600; 
+            text-transform: uppercase; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis;
+            width: 100%;
+            margin-bottom: 1px;
+          }
+          
+          .tag-meta { 
+            font-size: 7px; 
+            font-weight: 600;
+            color: #444; 
+            margin-bottom: 2px;
+            text-transform: uppercase;
+          }
+          
+          .barcode-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            margin: 2px 0;
+          }
+          
+          .barcode-img { 
+            height: 24px; 
+            width: auto; 
+            max-width: 90%; 
+            display: block; 
+            image-rendering: pixelated; 
+            image-rendering: crisp-edges;
+          }
+          
+          .barcode-digits { 
+            font-size: 8px; 
+            font-family: monospace; 
+            letter-spacing: 2px; 
+            font-weight: 700;
+            margin-top: 1px;
+          }
+          
+          .price-section { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 90%;
+            font-size: 8px; 
+            border-top: 0.5px dashed #000;
+            padding-top: 3px;
+            margin-top: 2px;
+          }
+          
+          .mrp-cross {
+            text-decoration: line-through;
+            font-weight: 400;
+            color: #555;
+            font-size: 7px;
+          }
+          
+          .sell-price {
+            font-size: 8px;
+            font-weight: 700;
+          }
+          
+          .sell-price b {
+            font-size: 10px;
+          }
+
+          .tag-footer {
+            font-size: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            margin-top: 1px;
+          }
+          
           @media print {
-            body { padding: 0; }
-            .barcode-tag-card { page-break-inside: avoid; }
+            body { 
+              padding: 0; 
+              margin: 0;
+            }
+            .labels-container {
+              gap: 8px;
+            }
+            .barcode-tag-card { 
+              border: 1px solid #000000; /* High contrast black for printer alignment */
+            }
           }
         </style>
       </head>
@@ -4062,7 +4208,10 @@ function triggerLabelsPrintSheet(labelItems) {
           ${labelsHtml}
         </div>
         <script>
-          window.onload = function() { window.print(); window.close(); }
+          window.onload = function() { 
+            window.print(); 
+            setTimeout(function() { window.close(); }, 500);
+          }
         </script>
       </body>
     </html>
