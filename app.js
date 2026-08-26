@@ -4674,7 +4674,19 @@ function startMobileCameraScanning() {
   const lastScannedEl = document.getElementById("last-scanned-item");
   const targetPeerId = new URLSearchParams(window.location.search).get("peerId");
 
+  // Track scanning state synchronously to prevent asynchronous race conditions
+  let isScanningActive = true;
+
   const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+    if (!isScanningActive) return;
+
+    // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
+    isScanningActive = false;
+
+    try {
+      html5QrReader.pause(true);
+    } catch (e) { }
+
     // Send barcode immediately to ntfy.sh pubsub topic
     const topicUrl = "https://ntfy.sh/tamildresspos_" + targetPeerId;
 
@@ -4698,15 +4710,25 @@ function startMobileCameraScanning() {
           }
         }
 
-        // Halt scanner for 1.5 seconds to prevent multiple rapid scans of the same tag
-        html5QrReader.pause(true);
+        // Resume scanning after 1.8 seconds
         setTimeout(() => {
-          html5QrReader.resume();
-        }, 1500);
+          isScanningActive = true;
+          try {
+            html5QrReader.resume();
+          } catch (e) { }
+        }, 1800);
       })
       .catch(err => {
         console.error("Failed to transmit scan:", err);
         alert("Transmitting Scan Error: Please check your mobile data connection.");
+
+        // Still resume scanning after error delay so user can try again
+        setTimeout(() => {
+          isScanningActive = true;
+          try {
+            html5QrReader.resume();
+          } catch (e) { }
+        }, 1800);
       });
   };
 
