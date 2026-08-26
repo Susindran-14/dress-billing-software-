@@ -2246,6 +2246,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }, 1000);
 
+  // Initialize WebRTC P2P remote mobile scanner synchronization service
+  initRemoteScannerSync();
+
   // Setup POS hotkeys keyboard event bindings
   document.addEventListener("keydown", (event) => {
     // Intercept keyboard typing if login screen is active
@@ -4562,4 +4565,215 @@ function lockWorkstation() {
 
   logAuditActivity("Workstation Locked", "Terminal locked by user.");
   showToast("POS Workstation Terminal locked.", "info");
+}
+
+// ==========================================================================
+// REAL-TIME WEBRTC P2P MOBILE SCANNER SYNC SERVICE
+// ==========================================================================
+
+let pcPeer = null;
+let pcPeerId = "";
+let mobilePeer = null;
+let mobileConn = null;
+let html5QrReader = null;
+
+function initRemoteScannerSync() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isScanMode = urlParams.get("scanMode") === "true";
+  const targetPeerId = urlParams.get("peerId");
+
+  if (isScanMode && targetPeerId) {
+    // -------------------------------------------------------------
+    // MOBILE CAMERA SCANNER VIEW STATE
+    // -------------------------------------------------------------
+    // Remove login lock panel immediately to display camera
+    const loginOverlay = document.getElementById("pos-login-screen");
+    if (loginOverlay) loginOverlay.classList.remove("active");
+    
+    document.getElementById("mobile-scanner-view").style.display = "flex";
+    
+    const statusEl = document.getElementById("mobile-peer-status");
+    
+    // Connect to WebRTC Peer Broker
+    mobilePeer = new Peer();
+    
+    mobilePeer.on("open", (id) => {
+      statusEl.innerText = "Connecting to Workstation PC...";
+      
+      // Connect directly to PC Workstation ID
+      mobileConn = mobilePeer.connect(targetPeerId);
+      
+      mobileConn.on("open", () => {
+        statusEl.innerText = "CONNECTED P2P ✔";
+        statusEl.style.background = "#065f46";
+        statusEl.style.borderColor = "#059669";
+        statusEl.style.color = "#ecfdf5";
+        
+        // Connect smartphone camera scanner stream
+        startMobileCameraScanning();
+      });
+      
+      mobileConn.on("close", () => {
+        statusEl.innerText = "Disconnected from PC ✖";
+        statusEl.style.background = "#991b1b";
+        statusEl.style.borderColor = "#ef4444";
+      });
+    });
+    
+    mobilePeer.on("error", (err) => {
+      statusEl.innerText = "Broker Connection Error ✖";
+      console.error("Mobile Peer error:", err);
+    });
+  } else {
+    // -------------------------------------------------------------
+    // PC TERMINAL WORKSTATION VIEW STATE
+    // -------------------------------------------------------------
+    // Initialize host peer
+    pcPeer = new Peer();
+    
+    pcPeer.on("open", (id) => {
+      pcPeerId = id;
+      console.log("Workstation Peer ID initialized:", id);
+    });
+    
+    pcPeer.on("connection", (conn) => {
+      console.log("Remote Mobile Scanner paired:", conn.peer);
+      
+      const statusEl = document.getElementById("pair-status-info");
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
+      }
+      showToast("Phone Scanner connected P2P successfully!", "success");
+      
+      // Hear scanned barcodes from mobile
+      conn.on("data", (data) => {
+        if (data && data.barcode) {
+          handleRemoteScannedBarcode(data.barcode);
+        }
+      });
+      
+      conn.on("close", () => {
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
+        }
+        showToast("Phone Scanner disconnected.", "info");
+      });
+    });
+  }
+}
+
+function handleRemoteScannedBarcode(barcode) {
+  const item = state.products.find(p => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase());
+  
+  // Play alert beep on PC speaker
+  playNotificationBeep();
+  
+  if (item) {
+    addCartItemBySku(item.sku);
+    renderPosCatalog();
+    showToast(`Remote Scanned: "${item.name}" added to cart!`, "success");
+  } else {
+    showToast(`Remote Scanned Unknown Barcode: "${barcode}"`, "warning");
+  }
+}
+
+function playNotificationBeep() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.type = "sine";
+    oscillator.frequency.value = 920; // 920Hz audio tone
+    gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.12);
+  } catch (e) {
+    console.error("Audio Context beep failed", e);
+  }
+}
+
+function startMobileCameraScanning() {
+  html5QrReader = new Html5Qrcode("camera-reader");
+  
+  const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+    if (mobileConn && mobileConn.open) {
+      // Send code to PC
+      mobileConn.send({ barcode: decodedText });
+      
+      // Play confirmations audio
+      playNotificationBeep();
+      
+      const lastScannedEl = document.getElementById("last-scanned-item");
+      if (lastScannedEl) {
+        lastScannedEl.style.display = "block";
+        
+        // Display matched catalog product name
+        const product = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
+        if (product) {
+          lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SCANNED:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
+        } else {
+          lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${decodedText}</code>`;
+        }
+      }
+      
+      // Halt scan trigger for 1.3 seconds to avoid duplicate repeat scans
+      html5QrReader.pause(true);
+      setTimeout(() => {
+        html5QrReader.resume();
+      }, 1300);
+    }
+  };
+  
+  const config = { fps: 15, qrbox: { width: 260, height: 190 } };
+  
+  html5QrReader.start(
+    { facingMode: "environment" },
+    config,
+    qrCodeSuccessCallback
+  ).catch(err => {
+    console.error("Camera capture stream failed:", err);
+    alert("Camera Access Error: Please permit camera permission in your mobile browser preferences to scan barcodes.");
+  });
+}
+
+function openPairScannerModal() {
+  if (!pcPeerId) {
+    showToast("WebRTC connection is initializing. Please try again in a few seconds.", "warning");
+    return;
+  }
+  
+  // Construct URL
+  const pairingUrl = window.location.origin + window.location.pathname + "?scanMode=true&peerId=" + pcPeerId;
+  
+  const qrContainer = document.getElementById("pair-qr-container");
+  if (qrContainer) {
+    qrContainer.innerHTML = "";
+    new QRCode(qrContainer, {
+      text: pairingUrl,
+      width: 170,
+      height: 170,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+  
+  openModal("modal-pair-scanner");
+}
+
+function exitMobileScanner() {
+  if (html5QrReader) {
+    try {
+      html5QrReader.stop().then(() => {
+        window.location.href = window.location.origin + window.location.pathname;
+      }).catch(() => {
+        window.location.href = window.location.origin + window.location.pathname;
+      });
+      return;
+    } catch (e) {}
+  }
+  window.location.href = window.location.origin + window.location.pathname;
 }
