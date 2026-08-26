@@ -1099,106 +1099,293 @@ body {
   background: var(--primary-light);
 }
 
+@media (max-width: 1024px) {
+  .kpi-cards-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-workspace-container {
+    grid-template-columns: 1fr;
+  }
+
+  .top-right-tools {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
 @media (max-width: 768px) {
-  /* Header adjustments */
+  body {
+    overflow: hidden;
+  }
+
   .top-navbar {
+    min-height: 56px;
+    height: auto;
     padding: 8px 12px !important;
     gap: 8px;
+    flex-wrap: wrap;
   }
+
+  .top-left-group {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .page-title-heading {
+    font-size: 14px;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .branch-selector {
-    display: none !important; /* Hide branch selector in small navbar to make space */
+    display: none !important;
   }
+
   .top-right-tools {
+    width: 100%;
+    justify-content: space-between;
     gap: 6px !important;
   }
+
   .quick-stat-chip {
     padding: 4px 8px !important;
     font-size: 10px !important;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
   }
+
   .quick-stat-chip span {
-    display: none; /* Hide 'Today Sales:' text, just show value */
+    display: none;
   }
+
   .quick-stat-chip strong {
     font-size: 10px;
   }
+
   #top-clock-pill {
-    display: none !important; /* Hide clock in header on mobile */
+    display: none !important;
   }
-  
-  /* Sidebar Drawer styling */
+
+  .theme-toggle {
+    padding: 6px 10px;
+    min-width: 36px;
+  }
+
+  .theme-toggle span {
+    display: none;
+  }
+
+  .theme-toggle i {
+    margin-right: 0;
+  }
+
+  #sidebar-mobile-toggle {
+    display: flex !important;
+  }
+
   .app-sidebar {
     position: fixed;
     top: 0;
-    left: -260px;
+    left: -80vw;
+    width: min(78vw, 280px);
     height: 100vh;
     z-index: 5000;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
   .app-sidebar.mobile-open {
     left: 0;
   }
-  
+
   .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;
   }
 
-  /* POS Workspace adjustments */
+  .view-panel {
+    padding: 12px;
+  }
+
+  .dashboard-grid {
+    gap: 12px;
+  }
+
+  .kpi-cards-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .kpi-card {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .kpi-content div.num {
+    font-size: 16px;
+  }
+
+  .card-box {
+    padding: 12px;
+  }
+
+  .card-box-header {
+    align-items: flex-start;
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .table-custom {
+    font-size: 10px;
+  }
+
   .pos-mobile-tabs {
     display: flex;
   }
-  
+
   .pos-workspace-container {
+    display: flex !important;
     flex-direction: column !important;
+    height: calc(100vh - 122px) !important;
     gap: 0 !important;
-    height: calc(100vh - 120px) !important;
-  }
-  
-  .pos-catalog-side, .pos-cart-side {
     width: 100% !important;
-    height: 100% !important;
   }
-  
+
+  .pos-catalog-side,
+  .pos-cart-side {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    flex: 1 1 auto;
+  }
+
+  .pos-search-card,
+  .pos-cards-scroll,
+  .cust-lookup-box,
+  .cart-table-area,
+  .checkout-summary-box {
+    width: 100%;
+    min-width: 0;
+  }
+
   .pos-workspace-container.show-catalog .pos-cart-side {
     display: none !important;
   }
+
   .pos-workspace-container.show-catalog .pos-catalog-side {
     display: flex !important;
   }
-  
+
   .pos-workspace-container.show-cart .pos-catalog-side {
     display: none !important;
   }
+
   .pos-workspace-container.show-cart .pos-cart-side {
     display: flex !important;
   }
 
-  /* Compact grid cards on mobile */
   .apparel-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 8px !important;
     padding: 8px 4px !important;
   }
-  .apparel-card {
-    padding: 8px !important;
+
+  .apparel-item-card {
+    padding: 10px;
   }
-  .apparel-card h4 {
-    font-size: 11px !important;
+
+  .apparel-title {
+    font-size: 12px;
   }
-  .apparel-card .price-row {
-    font-size: 11px !important;
+
+  .price-tag {
+    font-size: 14px;
   }
-  
-  /* Mobile modal adjustments */
+
+  .cust-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-btn-group {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .modal-card {
     width: 95% !important;
     max-height: 95vh !important;
   }
-  
-  /* QR Code scaling on mobile */
+
   #upi-qr-image {
     width: 180px !important;
     height: 180px !important;
+  }
+
+  .login-card {
+    width: min(88vw, 360px);
+    padding: 22px 18px;
+  }
+
+  .login-header h2 {
+    font-size: 14px;
+  }
+
+  .login-header p {
+    font-size: 10px;
+  }
+
+  .pin-btn {
+    height: 52px;
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-navbar {
+    padding: 8px 10px !important;
+  }
+
+  .page-title-heading {
+    font-size: 13px;
+    max-width: 120px;
+  }
+
+  .quick-stat-chip {
+    padding: 4px 6px !important;
+  }
+
+  .kpi-cards-row {
+    grid-template-columns: 1fr;
+  }
+
+  .apparel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mobile-tab-btn {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
+
+  .mobile-tab-btn span {
+    display: none;
+  }
+
+  .form-control {
+    font-size: 11px;
+  }
+
+  .scan-input-box input {
+    font-size: 12px;
   }
 }
