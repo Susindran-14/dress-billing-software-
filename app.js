@@ -4582,92 +4582,99 @@ function initRemoteScannerSync() {
   const isScanMode = urlParams.get("scanMode") === "true";
   const targetPeerId = urlParams.get("peerId");
 
-  if (isScanMode && targetPeerId) {
-    // -------------------------------------------------------------
-    // MOBILE CAMERA SCANNER VIEW STATE
-    // -------------------------------------------------------------
-    // Remove login lock panel immediately to display camera
-    const loginOverlay = document.getElementById("pos-login-screen");
-    if (loginOverlay) loginOverlay.classList.remove("active");
-    
-    document.getElementById("mobile-scanner-view").style.display = "flex";
-    
-    const statusEl = document.getElementById("mobile-peer-status");
-    
-    // Connect to WebRTC Peer Broker
-    mobilePeer = new Peer();
-    
-    mobilePeer.on("open", (id) => {
-      statusEl.innerText = "Connecting to Workstation PC...";
-      
-      // Connect directly to PC Workstation ID
-      mobileConn = mobilePeer.connect(targetPeerId);
-      
-      mobileConn.on("open", () => {
-        statusEl.innerText = "CONNECTED P2P ✔";
-        statusEl.style.background = "#065f46";
-        statusEl.style.borderColor = "#059669";
-        statusEl.style.color = "#ecfdf5";
-        
-        // Connect smartphone camera scanner stream
-        startMobileCameraScanning();
+  // Check if PeerJS library is loaded successfully
+  if (typeof Peer === "undefined") {
+    console.warn("PeerJS library not loaded. WebRTC remote scanner sync is disabled.");
+    return;
+  }
+
+  try {
+    if (isScanMode && targetPeerId) {
+      // -------------------------------------------------------------
+      // MOBILE CAMERA SCANNER VIEW STATE
+      // -------------------------------------------------------------
+      const loginOverlay = document.getElementById("pos-login-screen");
+      if (loginOverlay) loginOverlay.classList.remove("active");
+
+      document.getElementById("mobile-scanner-view").style.display = "flex";
+
+      const statusEl = document.getElementById("mobile-peer-status");
+
+      mobilePeer = new Peer();
+
+      mobilePeer.on("open", (id) => {
+        statusEl.innerText = "Connecting to Workstation PC...";
+
+        // Connect to target PC
+        mobileConn = mobilePeer.connect(targetPeerId);
+
+        mobileConn.on("open", () => {
+          statusEl.innerText = "CONNECTED P2P ✔";
+          statusEl.style.background = "#065f46";
+          statusEl.style.borderColor = "#059669";
+          statusEl.style.color = "#ecfdf5";
+
+          startMobileCameraScanning();
+        });
+
+        mobileConn.on("close", () => {
+          statusEl.innerText = "Disconnected from PC ✖";
+          statusEl.style.background = "#991b1b";
+          statusEl.style.borderColor = "#ef4444";
+        });
       });
-      
-      mobileConn.on("close", () => {
-        statusEl.innerText = "Disconnected from PC ✖";
-        statusEl.style.background = "#991b1b";
-        statusEl.style.borderColor = "#ef4444";
+
+      mobilePeer.on("error", (err) => {
+        statusEl.innerText = "Connection Error ✖";
+        console.error("Mobile Peer error:", err);
       });
-    });
-    
-    mobilePeer.on("error", (err) => {
-      statusEl.innerText = "Broker Connection Error ✖";
-      console.error("Mobile Peer error:", err);
-    });
-  } else {
-    // -------------------------------------------------------------
-    // PC TERMINAL WORKSTATION VIEW STATE
-    // -------------------------------------------------------------
-    // Initialize host peer
-    pcPeer = new Peer();
-    
-    pcPeer.on("open", (id) => {
-      pcPeerId = id;
-      console.log("Workstation Peer ID initialized:", id);
-    });
-    
-    pcPeer.on("connection", (conn) => {
-      console.log("Remote Mobile Scanner paired:", conn.peer);
-      
-      const statusEl = document.getElementById("pair-status-info");
-      if (statusEl) {
-        statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
-      }
-      showToast("Phone Scanner connected P2P successfully!", "success");
-      
-      // Hear scanned barcodes from mobile
-      conn.on("data", (data) => {
-        if (data && data.barcode) {
-          handleRemoteScannedBarcode(data.barcode);
-        }
+    } else {
+      // -------------------------------------------------------------
+      // PC TERMINAL WORKSTATION VIEW STATE
+      // -------------------------------------------------------------
+      // Generate ID immediately to ensure we don't wait for cloud server open event
+      pcPeerId = "tdc-pc-" + Math.floor(1000 + Math.random() * 9000);
+      pcPeer = new Peer(pcPeerId);
+
+      pcPeer.on("open", (id) => {
+        pcPeerId = id;
+        console.log("Workstation Peer ID initialized:", id);
       });
-      
-      conn.on("close", () => {
+
+      pcPeer.on("connection", (conn) => {
+        console.log("Remote Mobile Scanner paired:", conn.peer);
+
+        const statusEl = document.getElementById("pair-status-info");
         if (statusEl) {
-          statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
+          statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
         }
-        showToast("Phone Scanner disconnected.", "info");
+        showToast("Phone Scanner connected P2P successfully!", "success");
+
+        conn.on("data", (data) => {
+          if (data && data.barcode) {
+            handleRemoteScannedBarcode(data.barcode);
+          }
+        });
+
+        conn.on("close", () => {
+          if (statusEl) {
+            statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
+          }
+          showToast("Phone Scanner disconnected.", "info");
+        });
       });
-    });
+    }
+  } catch (err) {
+    console.error("WebRTC initialization failed:", err);
   }
 }
 
 function handleRemoteScannedBarcode(barcode) {
   const item = state.products.find(p => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase());
-  
+
   // Play alert beep on PC speaker
   playNotificationBeep();
-  
+
   if (item) {
     addCartItemBySku(item.sku);
     renderPosCatalog();
@@ -4682,14 +4689,14 @@ function playNotificationBeep() {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-    
+
     oscillator.type = "sine";
     oscillator.frequency.value = 920; // 920Hz audio tone
     gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    
+
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
+
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.12);
   } catch (e) {
@@ -4699,28 +4706,30 @@ function playNotificationBeep() {
 
 function startMobileCameraScanning() {
   html5QrReader = new Html5Qrcode("camera-reader");
-  
+
+  const statusEl = document.getElementById("mobile-peer-status");
+  const lastScannedEl = document.getElementById("last-scanned-item");
+
   const qrCodeSuccessCallback = (decodedText, decodedResult) => {
     if (mobileConn && mobileConn.open) {
       // Send code to PC
       mobileConn.send({ barcode: decodedText });
-      
+
       // Play confirmations audio
       playNotificationBeep();
-      
-      const lastScannedEl = document.getElementById("last-scanned-item");
+
       if (lastScannedEl) {
         lastScannedEl.style.display = "block";
-        
+
         // Display matched catalog product name
         const product = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
         if (product) {
-          lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SCANNED:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
+          lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SENT:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
         } else {
           lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${decodedText}</code>`;
         }
       }
-      
+
       // Halt scan trigger for 1.3 seconds to avoid duplicate repeat scans
       html5QrReader.pause(true);
       setTimeout(() => {
@@ -4728,40 +4737,125 @@ function startMobileCameraScanning() {
       }, 1300);
     }
   };
-  
+
   const config = { fps: 15, qrbox: { width: 260, height: 190 } };
-  
+
   html5QrReader.start(
     { facingMode: "environment" },
     config,
     qrCodeSuccessCallback
   ).catch(err => {
     console.error("Camera capture stream failed:", err);
-    alert("Camera Access Error: Please permit camera permission in your mobile browser preferences to scan barcodes.");
+    if (statusEl) {
+      statusEl.innerText = "Camera Access Blocked ✖";
+      statusEl.style.background = "#991b1b";
+    }
+    if (lastScannedEl) {
+      lastScannedEl.style.display = "block";
+      lastScannedEl.innerHTML = `
+        <span style="color:#ef4444; font-weight:bold;">CAMERA ERROR:</span><br>
+        <span style="font-size:11px; color:#f87171;">${err}</span>
+        <br><br>
+        <div style="font-size:10px; text-align:left; color:#ccc; line-height:1.3; border-top:1px dashed #4b5563; padding-top:8px;">
+          <strong>Security Note:</strong> Mobile browsers block camera API access (getUserMedia) on insecure <code>http://</code> IP addresses.<br><br>
+          Please <strong>deploy your app to Vercel (HTTPS)</strong> to resolve this browser block and enable direct mobile camera scanning!
+        </div>
+      `;
+    }
   });
 }
 
 function openPairScannerModal() {
-  if (!pcPeerId) {
-    showToast("WebRTC connection is initializing. Please try again in a few seconds.", "warning");
+  // Check if running from local file:// protocol
+  if (window.location.protocol === "file:") {
+    alert("Warning: Remote mobile scanning requires hosting the application on a web server (like Vercel or http://localhost:8000/). You cannot pair a mobile scanner when running directly from a local file:// path. Please host it first!");
     return;
   }
-  
-  // Construct URL
+
+  if (typeof Peer === "undefined") {
+    alert("WebRTC Sync Error: The remote sync libraries failed to load. Please verify your internet connection or check your browser console for script loading blocks.");
+    return;
+  }
+
+  // Force initialize pcPeerId if missing on click
+  if (!pcPeerId) {
+    pcPeerId = "tdc-pc-" + Math.floor(1000 + Math.random() * 9000);
+    try {
+      pcPeer = new Peer(pcPeerId);
+      pcPeer.on("connection", (conn) => {
+        const statusEl = document.getElementById("pair-status-info");
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
+        }
+        showToast("Phone Scanner connected P2P successfully!", "success");
+
+        conn.on("data", (data) => {
+          if (data && data.barcode) {
+            handleRemoteScannedBarcode(data.barcode);
+          }
+        });
+
+        conn.on("close", () => {
+          if (statusEl) {
+            statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
+          }
+          showToast("Phone Scanner disconnected.", "info");
+        });
+      });
+    } catch (e) {
+      console.warn("Delayed peer initialization failed:", e);
+    }
+  }
+
   const pairingUrl = window.location.origin + window.location.pathname + "?scanMode=true&peerId=" + pcPeerId;
-  
+
+  const warningEl = document.getElementById("pairing-localhost-warning");
+  if (warningEl) {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      warningEl.style.display = "block";
+      warningEl.innerHTML = `
+        <strong>⚠️ Localhost Testing Notice:</strong><br>
+        Your phone cannot resolve "localhost" (it refers to the phone itself). To test locally:
+        <ol style="margin: 4px 0 0 15px; padding: 0; line-height: 1.3;">
+          <li>Connect both phone and laptop to the <strong>same Wi-Fi network</strong>.</li>
+          <li>Find your laptop's Wi-Fi IP address (run <code>ipconfig</code> in Command Prompt, e.g., <code>192.168.1.15</code>).</li>
+          <li>Open this app on your laptop using that IP: <strong>http://[IP-Address]:8000/</strong>.</li>
+          <li>Scan the QR code generated from that URL!</li>
+        </ol>
+        <br>
+        <em>Or simply deploy the app to <strong>Vercel</strong> for instant, seamless pairing from anywhere!</em>
+      `;
+    } else {
+      warningEl.style.display = "none";
+    }
+  }
+
   const qrContainer = document.getElementById("pair-qr-container");
   if (qrContainer) {
-    qrContainer.innerHTML = "";
-    new QRCode(qrContainer, {
-      text: pairingUrl,
-      width: 170,
-      height: 170,
-      correctLevel: QRCode.CorrectLevel.M
-    });
+    // Generate QR using the robust free QR code API image instead of client-side canvas render
+    qrContainer.innerHTML = `
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(pairingUrl)}" 
+           alt="Pairing QR Code" 
+           style="width: 170px; height: 170px; display: block; border: none; margin: 0 auto;"
+           onerror="handleQrGenerationError()">
+    `;
   }
-  
+
   openModal("modal-pair-scanner");
+}
+
+function handleQrGenerationError() {
+  const qrContainer = document.getElementById("pair-qr-container");
+  if (qrContainer) {
+    const pairingUrl = window.location.origin + window.location.pathname + "?scanMode=true&peerId=" + pcPeerId;
+    qrContainer.innerHTML = `
+      <div style="font-size: 11px; color: var(--danger); padding: 15px; background: var(--danger-bg); border-radius: 6px;">
+        Failed to load QR code image. Tap link below to copy pairing URL:
+        <br><br>
+        <a href="${pairingUrl}" target="_blank" style="word-break: break-all; color: var(--primary); font-weight: bold;">${pairingUrl}</a>
+      </div>
+    `;
+  }
 }
 
 function exitMobileScanner() {
@@ -4773,7 +4867,7 @@ function exitMobileScanner() {
         window.location.href = window.location.origin + window.location.pathname;
       });
       return;
-    } catch (e) {}
+    } catch (e) { }
   }
   window.location.href = window.location.origin + window.location.pathname;
 }
