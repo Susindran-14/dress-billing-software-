@@ -4962,11 +4962,24 @@ function toggleDirectCameraScan(open = true) {
   if (open) {
     container.style.display = "block";
 
-    // Initialize html5QrReader locally on the page
+    if (directQrReader) {
+      try {
+        directQrReader.stop().catch(() => {});
+      } catch (e) { }
+    }
+
     directQrReader = new Html5Qrcode("pos-direct-camera-reader");
 
+    let isScanningActive = true;
+
     const qrSuccess = (decodedText) => {
-      // Find item
+      if (!isScanningActive) return;
+      isScanningActive = false;
+
+      try {
+        directQrReader.pause(true);
+      } catch (e) { }
+
       const item = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
       playNotificationBeep();
 
@@ -4978,20 +4991,25 @@ function toggleDirectCameraScan(open = true) {
         showToast(`Unknown Barcode: "${decodedText}"`, "warning");
       }
 
-      // Flash search input values to show code
       const searchInput = document.getElementById("pos-barcode-input");
       if (searchInput) {
         searchInput.value = decodedText;
         setTimeout(() => { searchInput.value = ""; }, 1500);
       }
 
-      // Auto-toggle tab to show cart on scan success so user can see it!
       if (window.innerWidth <= 768) {
         switchMobilePosTab("cart");
       }
+
+      setTimeout(() => {
+        isScanningActive = true;
+        try {
+          directQrReader.resume();
+        } catch (e) { }
+      }, 1800);
     };
 
-    const config = { fps: 15, qrbox: { width: 220, height: 150 } };
+    const config = { fps: 10, qrbox: { width: 220, height: 160 } };
 
     directQrReader.start(
       { facingMode: "environment" },
@@ -5001,14 +5019,15 @@ function toggleDirectCameraScan(open = true) {
       console.error("Direct scanner failed:", err);
       showToast("Camera Permission Blocked: Please enable camera access.", "error");
       container.style.display = "none";
+      isScanningActive = false;
     });
   } else {
-    // Close camera stream
     container.style.display = "none";
     if (directQrReader) {
       try {
-        directQrReader.stop().catch(err => console.log("Stream stop log:", err));
+        directQrReader.stop().catch(() => {});
       } catch (e) { }
+      directQrReader = null;
     }
   }
 }
