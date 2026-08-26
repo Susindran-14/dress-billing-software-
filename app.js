@@ -4834,18 +4834,19 @@ function playNotificationBeep() {
   }
 }
 
+let isPairedScanningActive = true;
+
 function startMobileCameraScanning() {
   html5QrReader = new Html5Qrcode("camera-reader");
 
   const lastScannedEl = document.getElementById("last-scanned-item");
   const targetPeerId = new URLSearchParams(window.location.search).get("peerId");
 
-  // Track scanning state synchronously to prevent asynchronous race conditions
-  let isScanningActive = true;
+  isPairedScanningActive = true;
 
   const qrCodeSuccessCallback = (decodedText, decodedResult) => {
     try {
-      if (!isScanningActive) return;
+      if (!isPairedScanningActive) return;
 
       const normalizedText = normalizeScanValue(decodedText);
       if (!normalizedText) return;
@@ -4855,7 +4856,7 @@ function startMobileCameraScanning() {
       }
 
       // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
-      isScanningActive = false;
+      isPairedScanningActive = false;
 
       try {
         html5QrReader.pause(true);
@@ -4884,29 +4885,27 @@ function startMobileCameraScanning() {
             }
           }
 
-          // Resume scanning after 1.8 seconds
-          setTimeout(() => {
-            isScanningActive = true;
-            try {
-              html5QrReader.resume();
-            } catch (e) { }
-          }, 1800);
+          // Show scan next button and change status prompt
+          const scanNextBtn = document.getElementById("paired-scan-next-btn");
+          if (scanNextBtn) scanNextBtn.style.display = "inline-block";
+
+          const statusEl = document.getElementById("mobile-peer-status");
+          if (statusEl) {
+            statusEl.innerText = "SCAN SENT ✔ TAP SCAN NEXT";
+            statusEl.style.background = "#4f46e5";
+          }
         })
         .catch(err => {
           console.error("Failed to transmit scan:", err);
           alert("Transmitting Scan Error: Please check your mobile data connection.");
 
-          // Still resume scanning after error delay so user can try again
-          setTimeout(() => {
-            isScanningActive = true;
-            try {
-              html5QrReader.resume();
-            } catch (e) { }
-          }, 1800);
+          // Still show the Scan Next button so they can re-trigger scanning
+          const scanNextBtn = document.getElementById("paired-scan-next-btn");
+          if (scanNextBtn) scanNextBtn.style.display = "inline-block";
         });
     } catch (error) {
       console.error("Mobile scan callback error:", error);
-      isScanningActive = true;
+      isPairedScanningActive = true;
       try {
         html5QrReader.resume();
       } catch (e) { }
@@ -5271,5 +5270,29 @@ function toggleDirectCameraScan(open = true) {
       directQrReader = null;
     }
     resetScanLock();
+  }
+}
+
+function resumePairedScanner() {
+  const scanNextBtn = document.getElementById("paired-scan-next-btn");
+  const lastScannedEl = document.getElementById("last-scanned-item");
+  const statusEl = document.getElementById("mobile-peer-status");
+
+  if (scanNextBtn) scanNextBtn.style.display = "none";
+  if (lastScannedEl) lastScannedEl.style.display = "none";
+  if (statusEl) {
+    statusEl.innerText = "CONNECTED TO CLOUD ✔";
+    statusEl.style.background = "#065f46";
+  }
+
+  // Clear previous lock state so same barcode can be scanned again if needed
+  resetScanLock();
+
+  isPairedScanningActive = true;
+
+  if (html5QrReader) {
+    try {
+      html5QrReader.resume();
+    } catch (e) { }
   }
 }
