@@ -4901,6 +4901,21 @@ function handleQrGenerationError() {
 }
 
 function exitMobileScanner() {
+  if (directQrReader) {
+    try {
+      directQrReader.stop().then(() => {
+        const overlay = document.getElementById("mobile-scanner-view");
+        if (overlay) overlay.style.display = "none";
+        switchMobilePosTab("cart");
+      }).catch(() => {
+        const overlay = document.getElementById("mobile-scanner-view");
+        if (overlay) overlay.style.display = "none";
+        switchMobilePosTab("cart");
+      });
+      return;
+    } catch (e) { }
+  }
+
   if (html5QrReader) {
     try {
       html5QrReader.stop().then(() => {
@@ -4956,31 +4971,143 @@ function switchMobilePosTab(tabName) {
 }
 
 function toggleDirectCameraScan(open = true) {
-  const container = document.getElementById("pos-direct-cam-container");
-  if (!container) return;
+  const inlineContainer = document.getElementById("pos-direct-cam-container");
+  const mobileOverlay = document.getElementById("mobile-scanner-view");
+  const mobileStatus = document.getElementById("mobile-peer-status");
+  const scanResult = document.getElementById("last-scanned-item");
+
+  if (window.innerWidth <= 768) {
+    if (open) {
+      if (mobileOverlay) mobileOverlay.style.display = "flex";
+      if (mobileStatus) {
+        mobileStatus.innerText = "Scanning barcode...";
+        mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
+        mobileStatus.style.borderColor = "rgba(165, 180, 252, 0.6)";
+        mobileStatus.style.color = "#dfe7ff";
+      }
+      if (scanResult) {
+        scanResult.style.display = "none";
+        scanResult.innerHTML = "";
+      }
+
+      if (directQrReader) {
+        try { directQrReader.stop().catch(() => {}); } catch (e) { }
+      }
+
+      directQrReader = new Html5Qrcode("camera-reader");
+
+      let isScanningActive = true;
+      let lastProcessedBarcode = "";
+      let lastProcessedAt = 0;
+      const scanCooldownMs = 1800;
+
+      const qrSuccess = (decodedText) => {
+        const normalizedText = String(decodedText || "").trim();
+        const now = Date.now();
+
+        if (!isScanningActive || !normalizedText) return;
+        if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+
+        isScanningActive = false;
+        lastProcessedBarcode = normalizedText;
+        lastProcessedAt = now;
+
+        try { directQrReader.pause(true); } catch (e) { }
+
+        const item = state.products.find(p => p.barcode === normalizedText || p.sku.toLowerCase() === normalizedText.toLowerCase());
+        playNotificationBeep();
+
+        if (item) {
+          addCartItemBySku(item.sku);
+          renderPosCatalog();
+          showToast(`Scanned: "${item.name}" added to cart!`, "success");
+        } else {
+          showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
+        }
+
+        const searchInput = document.getElementById("pos-barcode-input");
+        if (searchInput) {
+          searchInput.value = normalizedText;
+          setTimeout(() => { searchInput.value = ""; }, 1200);
+        }
+
+        if (scanResult) {
+          scanResult.style.display = "block";
+          scanResult.innerHTML = item
+            ? `<span style="color:#34d399; font-weight:800;">✓ ADDED TO CART</span><br><span style="color:#f8fafc;">${item.name}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`
+            : `<span style="color:#fbbf24; font-weight:800;">⚠ UNKNOWN BARCODE</span><br><span style="color:#f8fafc;">${normalizedText}</span><br><span style="color:#cbd5e1; font-size:11px;">Ready for next scan</span>`;
+        }
+
+        switchMobilePosTab("cart");
+
+        setTimeout(() => {
+          isScanningActive = true;
+          try { directQrReader.resume(); } catch (e) { }
+          if (mobileStatus) {
+            mobileStatus.innerText = "Scanning barcode...";
+            mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
+          }
+        }, scanCooldownMs);
+      };
+
+      const config = { fps: 10, qrbox: { width: 260, height: 190 } };
+
+      directQrReader.start(
+        { facingMode: "environment" },
+        config,
+        qrSuccess
+      ).catch(err => {
+        console.error("Direct scanner failed:", err);
+        showToast("Camera Permission Blocked: Please enable camera access.", "error");
+        if (mobileStatus) {
+          mobileStatus.innerText = "Camera access blocked";
+          mobileStatus.style.background = "rgba(127, 29, 29, 0.9)";
+          mobileStatus.style.borderColor = "rgba(248, 113, 113, 0.7)";
+          mobileStatus.style.color = "#fee2e2";
+        }
+      });
+
+      return;
+    }
+
+    if (mobileOverlay) mobileOverlay.style.display = "none";
+    if (directQrReader) {
+      try { directQrReader.stop().catch(() => {}); } catch (e) { }
+      directQrReader = null;
+    }
+    return;
+  }
+
+  if (!inlineContainer) return;
 
   if (open) {
-    container.style.display = "block";
+    inlineContainer.style.display = "block";
 
     if (directQrReader) {
-      try {
-        directQrReader.stop().catch(() => {});
-      } catch (e) { }
+      try { directQrReader.stop().catch(() => {}); } catch (e) { }
     }
 
     directQrReader = new Html5Qrcode("pos-direct-camera-reader");
 
     let isScanningActive = true;
+    let lastProcessedBarcode = "";
+    let lastProcessedAt = 0;
+    const scanCooldownMs = 1800;
 
     const qrSuccess = (decodedText) => {
-      if (!isScanningActive) return;
+      const normalizedText = String(decodedText || "").trim();
+      const now = Date.now();
+
+      if (!isScanningActive || !normalizedText) return;
+      if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+
       isScanningActive = false;
+      lastProcessedBarcode = normalizedText;
+      lastProcessedAt = now;
 
-      try {
-        directQrReader.pause(true);
-      } catch (e) { }
+      try { directQrReader.pause(true); } catch (e) { }
 
-      const item = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
+      const item = state.products.find(p => p.barcode === normalizedText || p.sku.toLowerCase() === normalizedText.toLowerCase());
       playNotificationBeep();
 
       if (item) {
@@ -4988,12 +5115,12 @@ function toggleDirectCameraScan(open = true) {
         renderPosCatalog();
         showToast(`Scanned: "${item.name}" added to cart!`, "success");
       } else {
-        showToast(`Unknown Barcode: "${decodedText}"`, "warning");
+        showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
       }
 
       const searchInput = document.getElementById("pos-barcode-input");
       if (searchInput) {
-        searchInput.value = decodedText;
+        searchInput.value = normalizedText;
         setTimeout(() => { searchInput.value = ""; }, 1500);
       }
 
@@ -5003,10 +5130,8 @@ function toggleDirectCameraScan(open = true) {
 
       setTimeout(() => {
         isScanningActive = true;
-        try {
-          directQrReader.resume();
-        } catch (e) { }
-      }, 1800);
+        try { directQrReader.resume(); } catch (e) { }
+      }, scanCooldownMs);
     };
 
     const config = { fps: 10, qrbox: { width: 220, height: 160 } };
@@ -5018,15 +5143,13 @@ function toggleDirectCameraScan(open = true) {
     ).catch(err => {
       console.error("Direct scanner failed:", err);
       showToast("Camera Permission Blocked: Please enable camera access.", "error");
-      container.style.display = "none";
+      inlineContainer.style.display = "none";
       isScanningActive = false;
     });
   } else {
-    container.style.display = "none";
+    inlineContainer.style.display = "none";
     if (directQrReader) {
-      try {
-        directQrReader.stop().catch(() => {});
-      } catch (e) { }
+      try { directQrReader.stop().catch(() => {}); } catch (e) { }
       directQrReader = null;
     }
   }
