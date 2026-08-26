@@ -4710,6 +4710,17 @@ function initRemoteScannerSync() {
   }
 }
 
+const SCAN_DEBOUNCE_MS = 1800;
+const scanLockState = {
+  lastValue: "",
+  lastTimestamp: 0
+};
+
+function resetScanLock() {
+  scanLockState.lastValue = "";
+  scanLockState.lastTimestamp = 0;
+}
+
 function normalizeScanValue(value) {
   return String(value ?? "")
     .trim()
@@ -4717,6 +4728,31 @@ function normalizeScanValue(value) {
     .replace(/[^A-Za-z0-9]/g, "")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .toUpperCase();
+}
+
+function processScannedBarcode(rawValue, source = "scanner") {
+  const normalizedText = normalizeScanValue(rawValue);
+  if (!normalizedText) return false;
+
+  const now = Date.now();
+  const isDuplicate = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
+  if (isDuplicate) {
+    return false;
+  }
+
+  scanLockState.lastValue = normalizedText;
+  scanLockState.lastTimestamp = now;
+
+  const product = findProductByScanValue(normalizedText);
+  if (product) {
+    addCartItemBySku(product.sku);
+    renderPosCatalog();
+    showToast(`Scanned: "${product.name}" added to cart!`, "success");
+    return true;
+  }
+
+  showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
+  return false;
 }
 
 function findProductByScanValue(value) {
@@ -4753,15 +4789,14 @@ function findProductByScanValue(value) {
 
 function handleRemoteScannedBarcode(barcode) {
   try {
+    playNotificationBeep();
     const item = findProductByScanValue(barcode);
 
-    // Play alert beep on PC speaker
-    playNotificationBeep();
-
     if (item) {
-      addCartItemBySku(item.sku);
-      renderPosCatalog();
-      showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
+      const shouldAdd = processScannedBarcode(item.barcode, "cloud");
+      if (shouldAdd) {
+        showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
+      }
     } else {
       showToast(`Cloud Scanned Unknown Barcode: "${String(barcode || "").trim()}"`, "warning");
     }
@@ -4806,6 +4841,14 @@ function startMobileCameraScanning() {
 
       const normalizedText = normalizeScanValue(decodedText);
       if (!normalizedText) return;
+
+      const now = Date.now();
+      const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
+      if (duplicateGuard) {
+        return;
+      }
+      scanLockState.lastValue = normalizedText;
+      scanLockState.lastTimestamp = now;
 
       // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
       isScanningActive = false;
@@ -5054,8 +5097,6 @@ function toggleDirectCameraScan(open = true) {
       directQrReader = new Html5Qrcode("camera-reader");
 
       let isScanningActive = true;
-      let lastProcessedBarcode = "";
-      let lastProcessedAt = 0;
       const scanCooldownMs = 1800;
 
       const qrSuccess = (decodedText) => {
@@ -5064,11 +5105,12 @@ function toggleDirectCameraScan(open = true) {
           const now = Date.now();
 
           if (!isScanningActive || !normalizedText) return;
-          if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+          const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
+          if (duplicateGuard) return;
 
           isScanningActive = false;
-          lastProcessedBarcode = normalizedText;
-          lastProcessedAt = now;
+          scanLockState.lastValue = normalizedText;
+          scanLockState.lastTimestamp = now;
 
           try { directQrReader.pause(true); } catch (e) { }
 
@@ -5108,7 +5150,7 @@ function toggleDirectCameraScan(open = true) {
               mobileStatus.innerText = "Scanning barcode...";
               mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
             }
-          }, 900);
+          }, SCAN_DEBOUNCE_MS);
         } catch (error) {
           console.error("Direct camera scan handler error:", error);
           isScanningActive = true;
@@ -5141,6 +5183,7 @@ function toggleDirectCameraScan(open = true) {
       try { directQrReader.stop().catch(() => {}); } catch (e) { }
       directQrReader = null;
     }
+    resetScanLock();
     return;
   }
 
@@ -5156,8 +5199,6 @@ function toggleDirectCameraScan(open = true) {
     directQrReader = new Html5Qrcode("pos-direct-camera-reader");
 
     let isScanningActive = true;
-    let lastProcessedBarcode = "";
-    let lastProcessedAt = 0;
     const scanCooldownMs = 1800;
 
     const qrSuccess = (decodedText) => {
@@ -5166,11 +5207,12 @@ function toggleDirectCameraScan(open = true) {
         const now = Date.now();
 
         if (!isScanningActive || !normalizedText) return;
-        if (normalizedText === lastProcessedBarcode && (now - lastProcessedAt) < scanCooldownMs) return;
+        const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
+        if (duplicateGuard) return;
 
         isScanningActive = false;
-        lastProcessedBarcode = normalizedText;
-        lastProcessedAt = now;
+        scanLockState.lastValue = normalizedText;
+        scanLockState.lastTimestamp = now;
 
         try { directQrReader.pause(true); } catch (e) { }
 
@@ -5198,7 +5240,7 @@ function toggleDirectCameraScan(open = true) {
         setTimeout(() => {
           isScanningActive = true;
           try { directQrReader.resume(); } catch (e) { }
-        }, scanCooldownMs);
+        }, SCAN_DEBOUNCE_MS);
       } catch (error) {
         console.error("Inline direct scan handler error:", error);
         isScanningActive = true;
@@ -5224,5 +5266,6 @@ function toggleDirectCameraScan(open = true) {
       try { directQrReader.stop().catch(() => {}); } catch (e) { }
       directQrReader = null;
     }
+    resetScanLock();
   }
 }
