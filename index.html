@@ -47,6 +47,8 @@
     </div>
   </div>
 
+  <div id="sidebar-mobile-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15,23,42,0.4); backdrop-filter: blur(2px); z-index: 4999;" onclick="toggleMobileSidebar(false)"></div>
+
   <!-- LEFT SIDEBAR NAVIGATION (20 Commercial Modules) -->
   <aside class="app-sidebar">
     <div class="sidebar-header">
@@ -73,6 +75,9 @@
     <!-- Top Navbar Bar -->
     <header class="top-navbar">
       <div class="top-left-group">
+        <button id="sidebar-mobile-toggle" style="display: none; background: none; border: none; font-size: 20px; color: var(--primary); cursor: pointer; margin-right: 12px; align-items: center; justify-content: center; height: 36px; width: 36px;" onclick="toggleMobileSidebar(true)">
+          <i class="fa-solid fa-bars"></i>
+        </button>
         <div class="page-title-heading" id="current-view-title">Dashboard Overview</div>
         <select class="branch-selector">
           <option value="main">🏪 Salem Main Branch</option>
@@ -203,7 +208,17 @@
            MODULE 2: POS BILLING SCREEN (The Most Important View)
            ==================================================================== -->
       <section class="view-panel" id="view-pos">
-        <div class="pos-workspace-container">
+        <!-- Mobile Tabs Selector Bar (hidden on desktop) -->
+        <div class="pos-mobile-tabs" id="pos-mobile-tabs-bar">
+          <button class="mobile-tab-btn active" id="tab-btn-catalog" onclick="switchMobilePosTab('catalog')">
+            <i class="fa-solid fa-shirt"></i> <span>Catalog Items</span>
+          </button>
+          <button class="mobile-tab-btn" id="tab-btn-cart" onclick="switchMobilePosTab('cart')">
+            <i class="fa-solid fa-cart-shopping"></i> <span>Cart Invoice</span> <strong id="mobile-cart-badge" style="background:var(--danger); color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:4px; display:none;">0</strong>
+          </button>
+        </div>
+
+        <div class="pos-workspace-container show-catalog">
           
           <!-- LEFT: Catalog Grid & Search -->
           <div class="pos-catalog-side">
@@ -211,6 +226,16 @@
               <div class="scan-input-box">
                 <i class="fa-solid fa-barcode"></i>
                 <input type="text" id="pos-barcode-input" placeholder="Scan clothing barcode (e.g. 8901001) or search apparel title..." oninput="renderPosCatalog()" onkeydown="handleBarcodeEnter(event)">
+                <button id="pos-mobile-cam-btn" title="Open Mobile Camera Scanner" onclick="toggleDirectCameraScan(true)" style="background:none; border:none; color:var(--primary); font-size:18px; padding:0 8px; cursor:pointer; display:flex; align-items:center;">
+                  <i class="fa-solid fa-camera"></i>
+                </button>
+              </div>
+
+              <!-- Direct Mobile Camera Scanner Container -->
+              <div id="pos-direct-cam-container" style="display: none; margin-top: 10px; border-radius: 8px; overflow: hidden; border: 2px solid var(--primary); position: relative; background: #000;">
+                <div id="pos-direct-camera-reader" style="width: 100%; height: 200px;"></div>
+                <div style="position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: #ef4444; box-shadow: 0 0 8px #ef4444; z-index: 10; animation: laserPulse 1.5s infinite;"></div>
+                <button class="btn-qty" style="position: absolute; bottom: 10px; right: 10px; z-index: 20; background: rgba(0,0,0,0.6); color:#fff; border:none; padding:4px 10px; font-size:11px;" onclick="toggleDirectCameraScan(false)">Close Camera</button>
               </div>
 
               <!-- Category Filter Chips -->

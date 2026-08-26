@@ -288,6 +288,11 @@ function createToastContainer() {
 function switchModuleView(viewName, buttonEl = null) {
   state.currentView = viewName;
 
+  // Auto-close mobile sidebar drawer if it is open
+  try {
+    toggleMobileSidebar(false);
+  } catch (e) { }
+
   // Deactivate all sections and menus
   document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".sidebar-menu-btn").forEach(b => b.classList.remove("active"));
@@ -942,6 +947,18 @@ function calculatePosTotals() {
 function renderPosCart() {
   const tbody = document.getElementById("pos-cart-tbody");
   if (!tbody) return;
+
+  // Update mobile cart badge count
+  const badgeEl = document.getElementById("mobile-cart-badge");
+  if (badgeEl) {
+    const totalCount = state.cart.reduce((sum, item) => sum + item.qty, 0);
+    if (totalCount > 0) {
+      badgeEl.innerText = totalCount;
+      badgeEl.style.display = "inline-block";
+    } else {
+      badgeEl.style.display = "none";
+    }
+  }
 
   if (state.cart.length === 0) {
     tbody.innerHTML = `
@@ -4403,7 +4420,7 @@ function triggerRestoreBackupSelector() {
 // SECURE LOGIN SYSTEM PIN PAD HANDLERS
 // ==========================================================================
 
-function populateLoginUserSelect() {}
+function populateLoginUserSelect() { }
 
 function pressLoginPin(digit) {
   const pinInput = document.getElementById("login-pin-input");
@@ -4746,4 +4763,103 @@ function exitMobileScanner() {
     } catch (e) { }
   }
   window.location.href = window.location.origin + window.location.pathname;
+}
+
+// ==========================================================================
+// MOBILE RESPONSIVE LAYOUT & INTERACTIVE CONTROLLERS
+// ==========================================================================
+
+let directQrReader = null;
+
+function toggleMobileSidebar(open) {
+  const sidebar = document.querySelector(".app-sidebar");
+  const overlay = document.getElementById("sidebar-mobile-overlay");
+
+  if (sidebar && overlay) {
+    if (open) {
+      sidebar.classList.add("mobile-open");
+      overlay.style.display = "block";
+    } else {
+      sidebar.classList.remove("mobile-open");
+      overlay.style.display = "none";
+    }
+  }
+}
+
+function switchMobilePosTab(tabName) {
+  const container = document.querySelector(".pos-workspace-container");
+  const catalogBtn = document.getElementById("tab-btn-catalog");
+  const cartBtn = document.getElementById("tab-btn-cart");
+
+  if (!container || !catalogBtn || !cartBtn) return;
+
+  if (tabName === "catalog") {
+    container.classList.remove("show-cart");
+    container.classList.add("show-catalog");
+    catalogBtn.classList.add("active");
+    cartBtn.classList.remove("active");
+  } else {
+    container.classList.remove("show-catalog");
+    container.classList.add("show-cart");
+    cartBtn.classList.add("active");
+    catalogBtn.classList.remove("active");
+  }
+}
+
+function toggleDirectCameraScan(open = true) {
+  const container = document.getElementById("pos-direct-cam-container");
+  if (!container) return;
+
+  if (open) {
+    container.style.display = "block";
+
+    // Initialize html5QrReader locally on the page
+    directQrReader = new Html5Qrcode("pos-direct-camera-reader");
+
+    const qrSuccess = (decodedText) => {
+      // Find item
+      const item = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
+      playNotificationBeep();
+
+      if (item) {
+        addCartItemBySku(item.sku);
+        renderPosCatalog();
+        showToast(`Scanned: "${item.name}" added to cart!`, "success");
+      } else {
+        showToast(`Unknown Barcode: "${decodedText}"`, "warning");
+      }
+
+      // Flash search input values to show code
+      const searchInput = document.getElementById("pos-barcode-input");
+      if (searchInput) {
+        searchInput.value = decodedText;
+        setTimeout(() => { searchInput.value = ""; }, 1500);
+      }
+
+      // Auto-toggle tab to show cart on scan success so user can see it!
+      if (window.innerWidth <= 768) {
+        switchMobilePosTab("cart");
+      }
+    };
+
+    const config = { fps: 15, qrbox: { width: 220, height: 150 } };
+
+    directQrReader.start(
+      { facingMode: "environment" },
+      config,
+      qrSuccess
+    ).catch(err => {
+      console.error("Direct scanner failed:", err);
+      showToast("Camera Permission Blocked: Please enable camera access.", "error");
+      container.style.display = "none";
+    });
+  } else {
+    // Close camera stream
+    container.style.display = "none";
+    if (directQrReader) {
+      try {
+        directQrReader.stop().catch(err => console.log("Stream stop log:", err));
+      } catch (e) { }
+    }
+  }
 }

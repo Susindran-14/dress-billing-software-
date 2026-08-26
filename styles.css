@@ -1064,3 +1064,141 @@ body {
   background: var(--success) !important;
   color: #ffffff !important;
 }
+
+/* ==========================================================================
+   MOBILE RESPONSIVE POS OVERRIDES
+   ========================================================================== */
+.pos-mobile-tabs {
+  display: none;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  margin-bottom: 10px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.mobile-tab-btn {
+  flex: 1;
+  padding: 10px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mobile-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--primary-light);
+}
+
+@media (max-width: 768px) {
+  /* Header adjustments */
+  .top-navbar {
+    padding: 8px 12px !important;
+    gap: 8px;
+  }
+  .branch-selector {
+    display: none !important; /* Hide branch selector in small navbar to make space */
+  }
+  .top-right-tools {
+    gap: 6px !important;
+  }
+  .quick-stat-chip {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+  }
+  .quick-stat-chip span {
+    display: none; /* Hide 'Today Sales:' text, just show value */
+  }
+  .quick-stat-chip strong {
+    font-size: 10px;
+  }
+  #top-clock-pill {
+    display: none !important; /* Hide clock in header on mobile */
+  }
+  
+  /* Sidebar Drawer styling */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    height: 100vh;
+    z-index: 5000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .app-sidebar.mobile-open {
+    left: 0;
+  }
+  
+  .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* POS Workspace adjustments */
+  .pos-mobile-tabs {
+    display: flex;
+  }
+  
+  .pos-workspace-container {
+    flex-direction: column !important;
+    gap: 0 !important;
+    height: calc(100vh - 120px) !important;
+  }
+  
+  .pos-catalog-side, .pos-cart-side {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  .pos-workspace-container.show-catalog .pos-cart-side {
+    display: none !important;
+  }
+  .pos-workspace-container.show-catalog .pos-catalog-side {
+    display: flex !important;
+  }
+  
+  .pos-workspace-container.show-cart .pos-catalog-side {
+    display: none !important;
+  }
+  .pos-workspace-container.show-cart .pos-cart-side {
+    display: flex !important;
+  }
+
+  /* Compact grid cards on mobile */
+  .apparel-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    padding: 8px 4px !important;
+  }
+  .apparel-card {
+    padding: 8px !important;
+  }
+  .apparel-card h4 {
+    font-size: 11px !important;
+  }
+  .apparel-card .price-row {
+    font-size: 11px !important;
+  }
+  
+  /* Mobile modal adjustments */
+  .modal-card {
+    width: 95% !important;
+    max-height: 95vh !important;
+  }
+  
+  /* QR Code scaling on mobile */
+  #upi-qr-image {
+    width: 180px !important;
+    height: 180px !important;
+  }
+}
