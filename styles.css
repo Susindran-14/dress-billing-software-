@@ -1256,11 +1256,12 @@ body {
 
 @media (max-width: 768px) {
   body {
-    overflow: hidden;
+    overflow: auto;
+    height: auto;
   }
 
   .top-navbar {
-    min-height: 56px;
+    min-height: 58px;
     height: auto;
     padding: 8px 12px !important;
     gap: 8px;
@@ -1289,6 +1290,7 @@ body {
     width: 100%;
     justify-content: space-between;
     gap: 6px !important;
+    flex-wrap: wrap;
   }
 
   .quick-stat-chip {
@@ -1346,10 +1348,20 @@ body {
   .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .module-container {
+    overflow: visible;
+    min-height: calc(100vh - 58px);
   }
 
   .view-panel {
     padding: 12px;
+    overflow: visible;
+    height: auto;
+    min-height: calc(100vh - 58px);
   }
 
   .dashboard-grid {
@@ -1381,7 +1393,45 @@ body {
   }
 
   .table-custom {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
     font-size: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .view-panel {
+    padding: 10px;
+  }
+
+  .card-box {
+    padding: 12px;
+  }
+
+  .card-box-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .cust-input-row,
+  div[style*="display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr"],
+  div[style*="display:grid; grid-template-columns:2fr 1fr 1fr"],
+  div[style*="display:grid; grid-template-columns:1fr 1fr 1fr"],
+  div[style*="display:grid; grid-template-columns:1fr 1fr"] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  div[style*="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; flex-wrap:wrap;"],
+  div[style*="display:flex; gap:6px;"],
+  div[style*="display:flex; gap:10px; flex-wrap:wrap;"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
   }
 
   .pos-mobile-tabs {
@@ -1391,9 +1441,11 @@ body {
   .pos-workspace-container {
     display: flex !important;
     flex-direction: column !important;
-    height: calc(100vh - 122px) !important;
+    min-height: calc(100vh - 132px) !important;
+    height: auto !important;
     gap: 0 !important;
     width: 100% !important;
+    overflow: visible !important;
   }
 
   .pos-catalog-side,
@@ -1401,8 +1453,10 @@ body {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    height: 100% !important;
+    min-height: 420px;
+    height: auto !important;
     flex: 1 1 auto;
+    overflow: visible;
   }
 
   .pos-search-card,
@@ -1454,6 +1508,12 @@ body {
 
   .checkout-btn-group {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .btn-action-checkout {
+    min-height: 42px;
+    white-space: nowrap;
   }
 
   .modal-card {
@@ -1485,6 +1545,45 @@ body {
   }
 }
 
+@media (max-width: 480px) {
+  .top-navbar {
+    padding: 8px 10px !important;
+  }
+
+  .page-title-heading {
+    font-size: 13px;
+    max-width: 120px;
+  }
+
+  .quick-stat-chip {
+    padding: 4px 6px !important;
+  }
+
+  .kpi-cards-row {
+    grid-template-columns: 1fr;
+  }
+
+  .apparel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mobile-tab-btn {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
+
+  .mobile-tab-btn span {
+    display: none;
+  }
+
+  .form-control {
+    font-size: 11px;
+  }
+
+  .scan-input-box input {
+    font-size: 12px;
+  }
+}
 @media (max-width: 480px) {
   .top-navbar {
     padding: 8px 10px !important;

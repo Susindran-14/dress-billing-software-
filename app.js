@@ -5041,13 +5041,16 @@ function toggleDirectCameraScan(open = true) {
         switchMobilePosTab("cart");
 
         setTimeout(() => {
+          if (mobileOverlay) {
+            mobileOverlay.style.display = "none";
+          }
           isScanningActive = true;
           try { directQrReader.resume(); } catch (e) { }
           if (mobileStatus) {
             mobileStatus.innerText = "Scanning barcode...";
             mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
           }
-        }, scanCooldownMs);
+        }, 900);
       };
 
       const config = { fps: 10, qrbox: { width: 260, height: 190 } };
