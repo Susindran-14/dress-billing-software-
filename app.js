@@ -4721,6 +4721,20 @@ function resetScanLock() {
   scanLockState.lastTimestamp = 0;
 }
 
+function acceptScanValue(value) {
+  const normalized = normalizeScanValue(value);
+  if (!normalized) return false;
+
+  const now = Date.now();
+  if (normalized === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS) {
+    return false;
+  }
+
+  scanLockState.lastValue = normalized;
+  scanLockState.lastTimestamp = now;
+  return true;
+}
+
 function normalizeScanValue(value) {
   return String(value ?? "")
     .trim()
@@ -4734,20 +4748,14 @@ function processScannedBarcode(rawValue, source = "scanner") {
   const normalizedText = normalizeScanValue(rawValue);
   if (!normalizedText) return false;
 
-  const now = Date.now();
-  const isDuplicate = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
-  if (isDuplicate) {
+  if (!acceptScanValue(normalizedText)) {
     return false;
   }
-
-  scanLockState.lastValue = normalizedText;
-  scanLockState.lastTimestamp = now;
 
   const product = findProductByScanValue(normalizedText);
   if (product) {
     addCartItemBySku(product.sku);
     renderPosCatalog();
-    showToast(`Scanned: "${product.name}" added to cart!`, "success");
     return true;
   }
 
@@ -4794,8 +4802,8 @@ function handleRemoteScannedBarcode(barcode) {
 
     if (item) {
       const shouldAdd = processScannedBarcode(item.barcode, "cloud");
-      if (shouldAdd) {
-        showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
+      if (!shouldAdd) {
+        return;
       }
     } else {
       showToast(`Cloud Scanned Unknown Barcode: "${String(barcode || "").trim()}"`, "warning");
@@ -4842,13 +4850,9 @@ function startMobileCameraScanning() {
       const normalizedText = normalizeScanValue(decodedText);
       if (!normalizedText) return;
 
-      const now = Date.now();
-      const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
-      if (duplicateGuard) {
+      if (!acceptScanValue(normalizedText)) {
         return;
       }
-      scanLockState.lastValue = normalizedText;
-      scanLockState.lastTimestamp = now;
 
       // Deactivate scanning immediately to prevent duplicate scans while fetch is flying
       isScanningActive = false;
@@ -5105,12 +5109,9 @@ function toggleDirectCameraScan(open = true) {
           const now = Date.now();
 
           if (!isScanningActive || !normalizedText) return;
-          const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
-          if (duplicateGuard) return;
+          if (!acceptScanValue(normalizedText)) return;
 
           isScanningActive = false;
-          scanLockState.lastValue = normalizedText;
-          scanLockState.lastTimestamp = now;
 
           try { directQrReader.pause(true); } catch (e) { }
 
@@ -5120,7 +5121,6 @@ function toggleDirectCameraScan(open = true) {
           if (item) {
             addCartItemBySku(item.sku);
             renderPosCatalog();
-            showToast(`Scanned: "${item.name}" added to cart!`, "success");
           } else {
             showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
           }
@@ -5207,12 +5207,9 @@ function toggleDirectCameraScan(open = true) {
         const now = Date.now();
 
         if (!isScanningActive || !normalizedText) return;
-        const duplicateGuard = normalizedText === scanLockState.lastValue && (now - scanLockState.lastTimestamp) < SCAN_DEBOUNCE_MS;
-        if (duplicateGuard) return;
+        if (!acceptScanValue(normalizedText)) return;
 
         isScanningActive = false;
-        scanLockState.lastValue = normalizedText;
-        scanLockState.lastTimestamp = now;
 
         try { directQrReader.pause(true); } catch (e) { }
 
@@ -5222,7 +5219,6 @@ function toggleDirectCameraScan(open = true) {
         if (item) {
           addCartItemBySku(item.sku);
           renderPosCatalog();
-          showToast(`Scanned: "${item.name}" added to cart!`, "success");
         } else {
           showToast(`Unknown Barcode: "${normalizedText}"`, "warning");
         }
