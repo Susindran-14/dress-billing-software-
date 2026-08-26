@@ -963,7 +963,7 @@ function renderPosCart() {
   if (state.cart.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align:center; padding: 50px; color: var(--text-muted);">
+        <td colspan="4" style="text-align:center; padding: 50px; color: var(--text-muted);">
           <i class="fa-solid fa-cash-register" style="font-size: 26px; margin-bottom: 8px; display:block;"></i>
           Cart is empty. Scan barcodes to add items.
         </td>
@@ -977,30 +977,41 @@ function renderPosCart() {
     return `
       <tr>
         <td>
-          <div style="font-weight: 700; color:var(--text-main);">${item.name}</div>
-          <div style="font-size:10px; color:var(--text-muted);">${item.sku} | ${item.color} | Size: ${item.size}</div>
+          <div style="font-weight: 700; color:var(--text-main); font-size: 11px; line-height: 1.3;">${item.name}</div>
+          <div style="font-size: 10px; color:var(--text-muted); margin: 2px 0;">Size: ${item.size} | Color: ${item.color}</div>
+          
+          <!-- Compact Price, Tax Rate & Discount configuration in first column -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 4px; gap: 8px;">
+            <div style="font-size: 10px; color: var(--text-muted);">
+              Rate: <b>₹${item.rate}</b> <span style="font-size:9px;">(+${item.gstRate}% GST)</span>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:2px;">
+              <span style="font-size:9px; color:var(--text-muted); font-weight:700;">Disc:</span>
+              <input type="number" class="form-control" style="width:38px; height:18px; text-align:right; padding:0 2px; font-size:10px;" value="${item.discountValue}" min="0" oninput="updateItemDiscount('${item.sku}', this.value, '${item.discountType}')">
+              <select class="form-control" style="width:30px; height:18px; padding:0; font-size:9px; font-weight:700;" onchange="updateItemDiscount('${item.sku}', this.previousElementSibling.value, this.value)">
+                <option value="flat" ${item.discountType === 'flat' ? 'selected' : ''}>₹</option>
+                <option value="percent" ${item.discountType === 'percent' ? 'selected' : ''}>%</option>
+              </select>
+            </div>
+          </div>
         </td>
-        <td style="text-align:center;">
+        
+        <td style="text-align:center; vertical-align: middle;">
           <div class="qty-controls" style="justify-content:center;">
-            <button class="btn-qty" onclick="updateCartQty('${item.sku}', -1)">-</button>
-            <strong style="width:16px; display:inline-block; text-align:center;">${item.qty}</strong>
-            <button class="btn-qty" onclick="updateCartQty('${item.sku}', 1)">+</button>
+            <button class="btn-qty" style="width: 18px; height: 18px; font-size: 10px;" onclick="updateCartQty('${item.sku}', -1)">-</button>
+            <strong style="width:14px; display:inline-block; text-align:center; font-size: 11px;">${item.qty}</strong>
+            <button class="btn-qty" style="width: 18px; height: 18px; font-size: 10px;" onclick="updateCartQty('${item.sku}', 1)">+</button>
           </div>
         </td>
-        <td style="text-align:right;">₹${item.rate}</td>
-        <td style="text-align:right;">
-          <div style="display:flex; align-items:center; gap:2px; justify-content:flex-end;">
-            <input type="number" class="form-control" style="width:48px; height:22px; text-align:right; padding:0 4px;" value="${item.discountValue}" min="0" oninput="updateItemDiscount('${item.sku}', this.value, '${item.discountType}')">
-            <select class="form-control" style="width:36px; height:22px; padding:0 2px; font-size:10px;" onchange="updateItemDiscount('${item.sku}', this.previousElementSibling.value, this.value)">
-              <option value="flat" ${item.discountType === 'flat' ? 'selected' : ''}>₹</option>
-              <option value="percent" ${item.discountType === 'percent' ? 'selected' : ''}>%</option>
-            </select>
-          </div>
+        
+        <td style="text-align:right; vertical-align: middle; font-weight:700; color:var(--text-main); font-size: 12px;">
+          <div>₹${item.total.toFixed(2)}</div>
+          ${item.discountAmount > 0 ? `<div style="font-size: 8px; color: var(--danger); font-weight: normal; margin-top: 1px;">-₹${Math.round(item.discountAmount)}</div>` : ''}
         </td>
-        <td style="text-align:right; font-size:10px; color:var(--text-muted);">${item.gstRate}%</td>
-        <td style="text-align:right; font-weight:700; color:var(--text-main);">₹${item.total.toFixed(2)}</td>
-        <td style="text-align:center;">
-          <button style="background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:14px;" onclick="removeCartItem('${item.sku}')">
+        
+        <td style="text-align:center; vertical-align: middle;">
+          <button style="background:transparent; border:none; color:var(--danger); cursor:pointer; font-size: 13px; padding: 4px;" onclick="removeCartItem('${item.sku}')" title="Remove Item">
             <i class="fa-solid fa-trash-can"></i>
           </button>
         </td>
@@ -2233,17 +2244,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Clear active operator session on startup to enforce secure PIN pad authentication
   state.currentUser = null;
 
-  // Populate the login profile dropdown list
-  populateLoginUserSelect();
-
-  // Show/Hide experience switch toggle depending on credentials
-  updateViewModeToggleBtnDisplay();
-
   // Render sidebar navigation links based on user/mode
   renderSidebar();
 
   // Bind menu triggers
   switchModuleView("dashboard");
+
+  // Auto-focus passcode entry input field on page load
+  const loginInput = document.getElementById("login-pin-input");
+  if (loginInput) {
+    setTimeout(() => { loginInput.focus(); }, 300);
+  }
 
   // Update clocks every second
   setInterval(() => {
@@ -4639,6 +4650,12 @@ function lockWorkstation() {
   }
 
   clearLoginPin();
+
+  // Auto-focus passcode entry input field
+  const loginInput = document.getElementById("login-pin-input");
+  if (loginInput) {
+    setTimeout(() => { loginInput.focus(); }, 300);
+  }
 
   logAuditActivity("Workstation Locked", "Terminal locked by user.");
   showToast("POS Workstation Terminal locked.", "info");
