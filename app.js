@@ -4600,6 +4600,9 @@ function initRemoteScannerSync() {
 
       const statusEl = document.getElementById("mobile-peer-status");
 
+      // Start camera viewport scanning immediately to prevent black screen while connecting
+      startMobileCameraScanning();
+
       mobilePeer = new Peer();
 
       mobilePeer.on("open", (id) => {
@@ -4613,8 +4616,6 @@ function initRemoteScannerSync() {
           statusEl.style.background = "#065f46";
           statusEl.style.borderColor = "#059669";
           statusEl.style.color = "#ecfdf5";
-
-          startMobileCameraScanning();
         });
 
         mobileConn.on("close", () => {
@@ -4735,6 +4736,8 @@ function startMobileCameraScanning() {
       setTimeout(() => {
         html5QrReader.resume();
       }, 1300);
+    } else {
+      alert("P2P Connection is not fully open yet. Please wait a moment or verify both devices are connected to the same Wi-Fi network.");
     }
   };
 
