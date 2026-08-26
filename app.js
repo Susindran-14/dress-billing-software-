@@ -128,8 +128,7 @@ const SEED_SETTINGS = {
 };
 
 const SEED_USERS = [
-  { username: "admin", role: "ADMIN", pin: "1111", name: "Administrator" },
-  { username: "cashier", role: "CASHIER", pin: "3333", name: "Cashier Priya" }
+  { username: "admin", role: "ADMIN", pin: "1111", name: "Administrator" }
 ];
 
 // --- INITIALIZE DATA SERVICE LAYER ---
@@ -214,13 +213,13 @@ function loadStateFromStorage() {
   state.settings = DataStore.get("settings", {});
   state.heldBills = DataStore.get("held_bills", []);
 
-  state.users = DataStore.get("users", SEED_USERS).filter(u => u.username !== "manager");
-  state.auditLogs = DataStore.get("audit_logs", []);
-  state.currentUser = DataStore.get("current_user", SEED_USERS[0]); // Default to admin
-  if (state.currentUser && state.currentUser.username === "manager") {
-    state.currentUser = SEED_USERS[0];
+  state.users = DataStore.get("users", SEED_USERS).filter(u => u.role === "ADMIN");
+  if (state.users.length === 0) {
+    state.users = [{ username: "admin", role: "ADMIN", pin: "1111", name: "Administrator" }];
   }
-  state.viewMode = DataStore.get("view_mode", "cashier");
+  state.auditLogs = DataStore.get("audit_logs", []);
+  state.currentUser = state.users[0]; // Default to admin
+  state.viewMode = "admin";
   state.selectedProductSkus = [];
 
   // Compute next available invoice number
@@ -337,11 +336,7 @@ function switchModuleView(viewName, buttonEl = null) {
 
   // Render respective module data
   if (viewName === "dashboard") {
-    if (state.viewMode === "admin") {
-      switchModuleView("admin-dashboard");
-    } else {
-      renderDashboard();
-    }
+    switchModuleView("admin-dashboard");
   }
   else if (viewName === "admin-dashboard") renderAdminDashboard();
   else if (viewName === "pos") {
@@ -350,11 +345,7 @@ function switchModuleView(viewName, buttonEl = null) {
     refocusBarcode();
   }
   else if (viewName === "products") {
-    if (state.viewMode === "admin") {
-      renderAdminProductsList();
-    } else {
-      renderProductsMatrix();
-    }
+    renderAdminProductsList();
   }
   else if (viewName === "admin-add-product") {
     // Basic initialization for empty add product view if needed
@@ -2776,135 +2767,86 @@ function toggleViewMode() {
 }
 
 function checkPermission(requiredRole) {
-  if (!state.currentUser) return false;
-  const role = state.currentUser.role;
-
-  if (requiredRole === "ADMIN") {
-    return role === "ADMIN";
-  }
-  if (requiredRole === "MANAGER") {
-    return role === "ADMIN" || role === "MANAGER";
-  }
-  return true; // Cashier has access
+  return true;
 }
 
 function renderSidebar() {
   const container = document.getElementById("sidebar-nav-links");
   if (!container) return;
 
-  let html = "";
+  // Render unified navigation matching all administrative and sales billing features
+  const html = `
+    <div class="nav-section-title">SALES & BILLING</div>
+    
+    <button class="sidebar-menu-btn active" onclick="switchModuleView('pos', this)">
+      <div class="left-grp"><i class="fa-solid fa-cash-register"></i> <span>POS Billing Workspace</span></div>
+      <span class="menu-badge" style="background:var(--success); color:#fff; font-size:9px; padding:2px 6px;">POS</span>
+    </button>
+    
+    <button class="sidebar-menu-btn" onclick="switchModuleView('admin-dashboard', this)">
+      <div class="left-grp"><i class="fa-solid fa-chart-pie"></i> <span>Admin Dashboard</span></div>
+    </button>
 
-  if (state.viewMode === "admin") {
-    // Admin Mode Sidebar
-    html = `
-      <div class="nav-section-title">ADMIN CONTROL CENTER</div>
-      
-      <button class="sidebar-menu-btn active" onclick="switchModuleView('admin-dashboard', this)">
-        <div class="left-grp"><i class="fa-solid fa-chart-pie"></i> <span>Admin Dashboard</span></div>
-      </button>
+    <div class="nav-section-title">CATALOG & INVENTORY</div>
+    
+    <button class="sidebar-menu-btn" onclick="switchModuleView('products', this)">
+      <div class="left-grp"><i class="fa-solid fa-shirt"></i> <span>Manage Apparel Matrix</span></div>
+    </button>
+    
+    <button class="sidebar-menu-btn" onclick="switchModuleView('admin-barcodes', this)">
+      <div class="left-grp"><i class="fa-solid fa-barcode"></i> <span>Barcode Labels Manager</span></div>
+    </button>
 
-      <div class="nav-section-title">CATALOG & INVENTORY</div>
-      
-      <button class="sidebar-menu-btn" onclick="switchModuleView('products', this)">
-        <div class="left-grp"><i class="fa-solid fa-shirt"></i> <span>Manage Products</span></div>
-      </button>
-      
-      <button class="sidebar-menu-btn" onclick="switchModuleView('admin-barcodes', this)">
-        <div class="left-grp"><i class="fa-solid fa-barcode"></i> <span>Barcode Manager</span></div>
-      </button>
+    <button class="sidebar-menu-btn" onclick="switchModuleView('admin-categories', this)">
+      <div class="left-grp"><i class="fa-solid fa-tags"></i> <span>Categories & Brands</span></div>
+    </button>
 
-      <button class="sidebar-menu-btn" onclick="switchModuleView('admin-categories', this)">
-        <div class="left-grp"><i class="fa-solid fa-tags"></i> <span>Categories & Brands</span></div>
-      </button>
+    <button class="sidebar-menu-btn" onclick="switchModuleView('inventory', this)">
+      <div class="left-grp"><i class="fa-solid fa-boxes-stacked"></i> <span>Current Stock Overview</span></div>
+    </button>
 
-      <button class="sidebar-menu-btn" onclick="switchModuleView('inventory', this)">
-        <div class="left-grp"><i class="fa-solid fa-boxes-stacked"></i> <span>Stock overview</span></div>
-      </button>
+    <div class="nav-section-title">SALES & PURCHASES</div>
+    
+    <button class="sidebar-menu-btn" onclick="switchModuleView('purchases', this)">
+      <div class="left-grp"><i class="fa-solid fa-truck-ramp-box"></i> <span>Purchases History</span></div>
+    </button>
+    
+    <button class="sidebar-menu-btn" onclick="switchModuleView('suppliers', this)">
+      <div class="left-grp"><i class="fa-solid fa-building-user"></i> <span>Suppliers Outstanding</span></div>
+    </button>
 
-      <div class="nav-section-title">SALES & PURCHASES</div>
-      
-      <button class="sidebar-menu-btn" onclick="switchModuleView('purchases', this)">
-        <div class="left-grp"><i class="fa-solid fa-truck-ramp-box"></i> <span>Purchases History</span></div>
-      </button>
-      
-      <button class="sidebar-menu-btn" onclick="switchModuleView('suppliers', this)">
-        <div class="left-grp"><i class="fa-solid fa-building-user"></i> <span>Suppliers Outstanding</span></div>
-      </button>
+    <button class="sidebar-menu-btn" onclick="switchModuleView('customers', this)">
+      <div class="left-grp"><i class="fa-solid fa-users"></i> <span>Customers Directory</span></div>
+    </button>
 
-      <button class="sidebar-menu-btn" onclick="switchModuleView('customers', this)">
-        <div class="left-grp"><i class="fa-solid fa-users"></i> <span>Customers Directory</span></div>
+    <button class="sidebar-menu-btn" onclick="switchModuleView('expenses', this)">
+      <div class="left-grp"><i class="fa-solid fa-wallet"></i> <span>Expenses Logs</span></div>
+    </button>
+
+    <div class="nav-section-title">REPORTS & SECURITY</div>
+
+    <button class="sidebar-menu-btn" onclick="switchModuleView('reports', this)">
+      <div class="left-grp"><i class="fa-solid fa-chart-line"></i> <span>Reports & GST Audit</span></div>
+    </button>
+
+    <button class="sidebar-menu-btn" onclick="switchModuleView('admin-users', this)">
+      <div class="left-grp"><i class="fa-solid fa-users-gear"></i> <span>Users & Roles</span></div>
+    </button>
+
+    <button class="sidebar-menu-btn" onclick="switchModuleView('admin-audit-logs', this)">
+      <div class="left-grp"><i class="fa-solid fa-clock-rotate-left"></i> <span>Activity Audit Logs</span></div>
+    </button>
+
+    <button class="sidebar-menu-btn" onclick="switchModuleView('settings', this)">
+      <div class="left-grp"><i class="fa-solid fa-gears"></i> <span>System Settings</span></div>
+    </button>
+
+    <div style="padding:15px; margin-top:10px;">
+      <button class="btn-qty" style="width:100%; font-size:10px; background:var(--bg-card-subtle); color:var(--text-main); height:28px;" onclick="lockWorkstation()">
+        <i class="fa-solid fa-lock"></i> Lock Station
       </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('expenses', this)">
-        <div class="left-grp"><i class="fa-solid fa-wallet"></i> <span>Expenses logs</span></div>
-      </button>
-
-      <div class="nav-section-title">REPORTS & SECURITY</div>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('reports', this)">
-        <div class="left-grp"><i class="fa-solid fa-chart-line"></i> <span>Reports & GST Audit</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('admin-users', this)">
-        <div class="left-grp"><i class="fa-solid fa-users-gear"></i> <span>Users & Roles</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('admin-audit-logs', this)">
-        <div class="left-grp"><i class="fa-solid fa-clock-rotate-left"></i> <span>Activity Audit Logs</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('settings', this)">
-        <div class="left-grp"><i class="fa-solid fa-gears"></i> <span>System Settings</span></div>
-      </button>
-
-      <div style="padding:15px; margin-top:10px; display:flex; flex-direction:column; gap:6px;">
-        <button class="btn-action-checkout btn-pay" style="width:100%; height:32px; font-size:10px;" onclick="toggleViewMode()">
-          <i class="fa-solid fa-cash-register"></i> Back to POS View
-        </button>
-        <button class="btn-qty" style="width:100%; font-size:10px; background:var(--bg-card-subtle); color:var(--text-main); height:28px;" onclick="lockWorkstation()">
-          <i class="fa-solid fa-lock"></i> Lock Station
-        </button>
-      </div>
-    `;
-  } else {
-    // Cashier Mode Sidebar
-    const showAdminBtn = state.currentUser && state.currentUser.role !== "CASHIER";
-    html = `
-      <div class="nav-section-title">CASHIER POS DESKTOP</div>
-      
-      <button class="sidebar-menu-btn" onclick="switchModuleView('dashboard', this)">
-        <div class="left-grp"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn active" onclick="switchModuleView('pos', this)">
-        <div class="left-grp"><i class="fa-solid fa-cash-register"></i> <span>Sales / POS Billing</span></div>
-        <span class="menu-badge">POS</span>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('expenses', this)">
-        <div class="left-grp"><i class="fa-solid fa-wallet"></i> <span>Daily Expenses</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="openWhatsAppModal()">
-        <div class="left-grp"><i class="fa-brands fa-whatsapp"></i> <span>WhatsApp sharing</span></div>
-      </button>
-
-      <button class="sidebar-menu-btn" onclick="switchModuleView('settings', this)">
-        <div class="left-grp"><i class="fa-solid fa-gear"></i> <span>Settings Configuration</span></div>
-      </button>
-
-      <div style="padding:15px; margin-top:20px; display:flex; flex-direction:column; gap:8px;">
-        <button class="btn-qty" style="width:100%; font-size:11px; background:var(--bg-card-subtle); color:var(--text-main); height:30px;" onclick="lockWorkstation()">
-          <i class="fa-solid fa-lock"></i> Lock Station
-        </button>
-        ${showAdminBtn ? `
-        <button class="btn-action-checkout btn-pay" style="width:100%; font-size:11px; height:32px;" onclick="toggleViewMode()">
-          <i class="fa-solid fa-gears"></i> Switch to Admin
-        </button>
-        ` : ""}
-      </div>
-    `;
-  }
+    </div>
+  `;
 
   container.innerHTML = html;
 }
@@ -4461,14 +4403,7 @@ function triggerRestoreBackupSelector() {
 // SECURE LOGIN SYSTEM PIN PAD HANDLERS
 // ==========================================================================
 
-function populateLoginUserSelect() {
-  const select = document.getElementById("login-user-select");
-  if (select) {
-    select.innerHTML = state.users.map(u => {
-      return `<option value="${u.username}">${u.name} (${u.role})</option>`;
-    }).join("");
-  }
-}
+function populateLoginUserSelect() {}
 
 function pressLoginPin(digit) {
   const pinInput = document.getElementById("login-pin-input");
@@ -4490,7 +4425,6 @@ function clearLoginPin() {
 }
 
 function submitLoginPin() {
-  const username = document.getElementById("login-user-select").value;
   const pin = document.getElementById("login-pin-input").value;
 
   if (pin.length !== 4) {
@@ -4498,13 +4432,10 @@ function submitLoginPin() {
     return;
   }
 
-  const user = state.users.find(u => u.username === username);
-  if (!user) {
-    showToast("Selected user profile does not exist.", "error");
-    return;
-  }
+  // Find Admin profile matching this passcode PIN
+  const adminUser = state.users.find(u => u.role === "ADMIN" && u.pin === pin);
 
-  if (user.pin !== pin) {
+  if (!adminUser) {
     alert("Incorrect PIN code. Access Denied.");
     showToast("Incorrect passcode PIN. Access Denied.", "error");
     clearLoginPin();
@@ -4512,31 +4443,12 @@ function submitLoginPin() {
   }
 
   // Authorize Operator
-  state.currentUser = user;
+  state.currentUser = adminUser;
+  state.viewMode = "admin";
   saveStateToStorage();
 
-  // Set topbar display info
-  const userRoleEl = document.getElementById("top-user-role");
-  if (userRoleEl) {
-    userRoleEl.innerText = `${user.username} (${user.role})`;
-  }
-
-  // Show/Hide experience switch toggle
-  updateViewModeToggleBtnDisplay();
-
-  // Force view mode layouts depending on roles permissions
-  if (user.role === "CASHIER") {
-    state.viewMode = "cashier";
-    saveStateToStorage();
-    switchModuleView("pos");
-  } else {
-    if (state.viewMode === "admin") {
-      switchModuleView("admin-dashboard");
-    } else {
-      switchModuleView("dashboard");
-    }
-  }
-
+  // Redirect straight to POS billing view
+  switchModuleView("pos");
   renderSidebar();
 
   // Deactivate login screen overlay view
@@ -4545,8 +4457,8 @@ function submitLoginPin() {
     loginOverlay.classList.remove("active");
   }
 
-  logAuditActivity("Secure Login", `Operator ${user.name} (${user.role}) unlocked workstation terminal.`);
-  showToast(`Welcome back, ${user.name}!`, "success");
+  logAuditActivity("Secure Login", `Administrator unlocked POS workstation.`);
+  showToast(`Welcome back, Administrator!`, "success");
 }
 
 function lockWorkstation() {
@@ -4561,7 +4473,6 @@ function lockWorkstation() {
   }
 
   clearLoginPin();
-  populateLoginUserSelect();
 
   logAuditActivity("Workstation Locked", "Terminal locked by user.");
   showToast("POS Workstation Terminal locked.", "info");
