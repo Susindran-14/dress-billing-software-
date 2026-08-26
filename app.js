@@ -5095,7 +5095,7 @@ function toggleDirectCameraScan(open = true) {
       }
 
       if (directQrReader) {
-        try { directQrReader.stop().catch(() => {}); } catch (e) { }
+        try { directQrReader.stop().catch(() => { }); } catch (e) { }
       }
 
       directQrReader = new Html5Qrcode("camera-reader");
@@ -5140,21 +5140,29 @@ function toggleDirectCameraScan(open = true) {
 
           switchMobilePosTab("cart");
 
-          setTimeout(() => {
-            if (mobileOverlay) {
-              mobileOverlay.style.display = "none";
+          if (directQrReader) {
+            try {
+              directQrReader.stop().then(() => {
+                if (mobileOverlay) mobileOverlay.style.display = "none";
+                directQrReader = null;
+                isScanningActive = true;
+              }).catch(() => {
+                if (mobileOverlay) mobileOverlay.style.display = "none";
+                directQrReader = null;
+                isScanningActive = true;
+              });
+            } catch (e) {
+              if (mobileOverlay) mobileOverlay.style.display = "none";
+              directQrReader = null;
+              isScanningActive = true;
             }
+          } else {
+            if (mobileOverlay) mobileOverlay.style.display = "none";
             isScanningActive = true;
-            try { directQrReader.resume(); } catch (e) { }
-            if (mobileStatus) {
-              mobileStatus.innerText = "Scanning barcode...";
-              mobileStatus.style.background = "rgba(79, 70, 229, 0.12)";
-            }
-          }, SCAN_DEBOUNCE_MS);
+          }
         } catch (error) {
           console.error("Direct camera scan handler error:", error);
           isScanningActive = true;
-          try { directQrReader.resume(); } catch (e) { }
         }
       };
 
@@ -5180,7 +5188,7 @@ function toggleDirectCameraScan(open = true) {
 
     if (mobileOverlay) mobileOverlay.style.display = "none";
     if (directQrReader) {
-      try { directQrReader.stop().catch(() => {}); } catch (e) { }
+      try { directQrReader.stop().catch(() => { }); } catch (e) { }
       directQrReader = null;
     }
     resetScanLock();
@@ -5193,7 +5201,7 @@ function toggleDirectCameraScan(open = true) {
     inlineContainer.style.display = "block";
 
     if (directQrReader) {
-      try { directQrReader.stop().catch(() => {}); } catch (e) { }
+      try { directQrReader.stop().catch(() => { }); } catch (e) { }
     }
 
     directQrReader = new Html5Qrcode("pos-direct-camera-reader");
@@ -5259,7 +5267,7 @@ function toggleDirectCameraScan(open = true) {
   } else {
     inlineContainer.style.display = "none";
     if (directQrReader) {
-      try { directQrReader.stop().catch(() => {}); } catch (e) { }
+      try { directQrReader.stop().catch(() => { }); } catch (e) { }
       directQrReader = null;
     }
     resetScanLock();
