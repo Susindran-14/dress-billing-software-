@@ -4568,13 +4568,11 @@ function lockWorkstation() {
 }
 
 // ==========================================================================
-// REAL-TIME WEBRTC P2P MOBILE SCANNER SYNC SERVICE
+// REAL-TIME CLOUD-RELAYED MOBILE SCANNER SYNC SERVICE
 // ==========================================================================
 
-let pcPeer = null;
 let pcPeerId = "";
-let mobilePeer = null;
-let mobileConn = null;
+let sseEventSource = null;
 let html5QrReader = null;
 
 function initRemoteScannerSync() {
@@ -4582,91 +4580,56 @@ function initRemoteScannerSync() {
   const isScanMode = urlParams.get("scanMode") === "true";
   const targetPeerId = urlParams.get("peerId");
 
-  // Check if PeerJS library is loaded successfully
-  if (typeof Peer === "undefined") {
-    console.warn("PeerJS library not loaded. WebRTC remote scanner sync is disabled.");
-    return;
-  }
+  if (isScanMode && targetPeerId) {
+    // -------------------------------------------------------------
+    // MOBILE CAMERA SCANNER VIEW STATE
+    // -------------------------------------------------------------
+    const loginOverlay = document.getElementById("pos-login-screen");
+    if (loginOverlay) loginOverlay.classList.remove("active");
 
-  try {
-    if (isScanMode && targetPeerId) {
-      // -------------------------------------------------------------
-      // MOBILE CAMERA SCANNER VIEW STATE
-      // -------------------------------------------------------------
-      const loginOverlay = document.getElementById("pos-login-screen");
-      if (loginOverlay) loginOverlay.classList.remove("active");
+    document.getElementById("mobile-scanner-view").style.display = "flex";
 
-      document.getElementById("mobile-scanner-view").style.display = "flex";
-
-      const statusEl = document.getElementById("mobile-peer-status");
-
-      // Start camera viewport scanning immediately to prevent black screen while connecting
-      startMobileCameraScanning();
-
-      mobilePeer = new Peer();
-
-      mobilePeer.on("open", (id) => {
-        statusEl.innerText = "Connecting to Workstation PC...";
-
-        // Connect to target PC
-        mobileConn = mobilePeer.connect(targetPeerId);
-
-        mobileConn.on("open", () => {
-          statusEl.innerText = "CONNECTED P2P ✔";
-          statusEl.style.background = "#065f46";
-          statusEl.style.borderColor = "#059669";
-          statusEl.style.color = "#ecfdf5";
-        });
-
-        mobileConn.on("close", () => {
-          statusEl.innerText = "Disconnected from PC ✖";
-          statusEl.style.background = "#991b1b";
-          statusEl.style.borderColor = "#ef4444";
-        });
-      });
-
-      mobilePeer.on("error", (err) => {
-        statusEl.innerText = "Connection Error ✖";
-        console.error("Mobile Peer error:", err);
-      });
-    } else {
-      // -------------------------------------------------------------
-      // PC TERMINAL WORKSTATION VIEW STATE
-      // -------------------------------------------------------------
-      // Generate ID immediately to ensure we don't wait for cloud server open event
-      pcPeerId = "tdc-pc-" + Math.floor(1000 + Math.random() * 9000);
-      pcPeer = new Peer(pcPeerId);
-
-      pcPeer.on("open", (id) => {
-        pcPeerId = id;
-        console.log("Workstation Peer ID initialized:", id);
-      });
-
-      pcPeer.on("connection", (conn) => {
-        console.log("Remote Mobile Scanner paired:", conn.peer);
-
-        const statusEl = document.getElementById("pair-status-info");
-        if (statusEl) {
-          statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
-        }
-        showToast("Phone Scanner connected P2P successfully!", "success");
-
-        conn.on("data", (data) => {
-          if (data && data.barcode) {
-            handleRemoteScannedBarcode(data.barcode);
-          }
-        });
-
-        conn.on("close", () => {
-          if (statusEl) {
-            statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
-          }
-          showToast("Phone Scanner disconnected.", "info");
-        });
-      });
+    const statusEl = document.getElementById("mobile-peer-status");
+    if (statusEl) {
+      statusEl.innerText = "CONNECTED TO CLOUD ✔";
+      statusEl.style.background = "#065f46";
+      statusEl.style.borderColor = "#059669";
+      statusEl.style.color = "#ecfdf5";
     }
-  } catch (err) {
-    console.error("WebRTC initialization failed:", err);
+
+    // Start camera viewport scanning immediately
+    startMobileCameraScanning();
+  } else {
+    // -------------------------------------------------------------
+    // PC TERMINAL WORKSTATION VIEW STATE
+    // -------------------------------------------------------------
+    pcPeerId = "tdc-pc-" + Math.floor(1000 + Math.random() * 9000);
+    console.log("Workstation Cloud Sync ID initialized:", pcPeerId);
+
+    // Initialize Server-Sent Events (SSE) relay connection via free public ntfy.sh server
+    try {
+      const sseUrl = "https://ntfy.sh/tamildresspos_" + pcPeerId + "/sse";
+      sseEventSource = new EventSource(sseUrl);
+
+      sseEventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          // ntfy.sh sends a keepalive comment or message events
+          if (data.event === "message" && data.message) {
+            console.log("Cloud scan received:", data.message);
+            handleRemoteScannedBarcode(data.message);
+          }
+        } catch (err) {
+          console.error("SSE parse error:", err);
+        }
+      };
+
+      sseEventSource.onerror = (err) => {
+        console.warn("SSE connection interrupted. Reconnecting automatically...", err);
+      };
+    } catch (err) {
+      console.error("Cloud Sync connection failed to start:", err);
+    }
   }
 }
 
@@ -4679,9 +4642,9 @@ function handleRemoteScannedBarcode(barcode) {
   if (item) {
     addCartItemBySku(item.sku);
     renderPosCatalog();
-    showToast(`Remote Scanned: "${item.name}" added to cart!`, "success");
+    showToast(`Cloud Scanned: "${item.name}" added to cart!`, "success");
   } else {
-    showToast(`Remote Scanned Unknown Barcode: "${barcode}"`, "warning");
+    showToast(`Cloud Scanned Unknown Barcode: "${barcode}"`, "warning");
   }
 }
 
@@ -4708,37 +4671,43 @@ function playNotificationBeep() {
 function startMobileCameraScanning() {
   html5QrReader = new Html5Qrcode("camera-reader");
 
-  const statusEl = document.getElementById("mobile-peer-status");
   const lastScannedEl = document.getElementById("last-scanned-item");
+  const targetPeerId = new URLSearchParams(window.location.search).get("peerId");
 
   const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-    if (mobileConn && mobileConn.open) {
-      // Send code to PC
-      mobileConn.send({ barcode: decodedText });
+    // Send barcode immediately to ntfy.sh pubsub topic
+    const topicUrl = "https://ntfy.sh/tamildresspos_" + targetPeerId;
 
-      // Play confirmations audio
-      playNotificationBeep();
+    fetch(topicUrl, {
+      method: "POST",
+      body: decodedText
+    })
+      .then(() => {
+        // Play confirmations audio on mobile phone
+        playNotificationBeep();
 
-      if (lastScannedEl) {
-        lastScannedEl.style.display = "block";
+        if (lastScannedEl) {
+          lastScannedEl.style.display = "block";
 
-        // Display matched catalog product name
-        const product = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
-        if (product) {
-          lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SENT:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
-        } else {
-          lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${decodedText}</code>`;
+          // Display matched catalog product name locally for confirmation
+          const product = state.products.find(p => p.barcode === decodedText || p.sku.toLowerCase() === decodedText.toLowerCase());
+          if (product) {
+            lastScannedEl.innerHTML = `<span style="color:#10b981; font-weight:bold;">✔ SENT:</span> <b>${product.name}</b><br>Size: ${product.size} | Rate: ₹${product.sellingPrice}`;
+          } else {
+            lastScannedEl.innerHTML = `<span style="color:#f59e0b; font-weight:bold;">✔ SENT CODE:</span> <code>${decodedText}</code>`;
+          }
         }
-      }
 
-      // Halt scan trigger for 1.3 seconds to avoid duplicate repeat scans
-      html5QrReader.pause(true);
-      setTimeout(() => {
-        html5QrReader.resume();
-      }, 1300);
-    } else {
-      alert("P2P Connection is not fully open yet. Please wait a moment or verify both devices are connected to the same Wi-Fi network.");
-    }
+        // Halt scanner for 1.5 seconds to prevent multiple rapid scans of the same tag
+        html5QrReader.pause(true);
+        setTimeout(() => {
+          html5QrReader.resume();
+        }, 1500);
+      })
+      .catch(err => {
+        console.error("Failed to transmit scan:", err);
+        alert("Transmitting Scan Error: Please check your mobile data connection.");
+      });
   };
 
   const config = { fps: 15, qrbox: { width: 260, height: 190 } };
@@ -4749,6 +4718,7 @@ function startMobileCameraScanning() {
     qrCodeSuccessCallback
   ).catch(err => {
     console.error("Camera capture stream failed:", err);
+    const statusEl = document.getElementById("mobile-peer-status");
     if (statusEl) {
       statusEl.innerText = "Camera Access Blocked ✖";
       statusEl.style.background = "#991b1b";
@@ -4769,58 +4739,23 @@ function startMobileCameraScanning() {
 }
 
 function openPairScannerModal() {
-  // Check if running from local file:// protocol
-  if (window.location.protocol === "file:") {
-    alert("Warning: Remote mobile scanning requires hosting the application on a web server (like Vercel or http://localhost:8000/). You cannot pair a mobile scanner when running directly from a local file:// path. Please host it first!");
-    return;
-  }
-
-  if (typeof Peer === "undefined") {
-    alert("WebRTC Sync Error: The remote sync libraries failed to load. Please verify your internet connection or check your browser console for script loading blocks.");
-    return;
-  }
-
-  // Force initialize pcPeerId if missing on click
   if (!pcPeerId) {
-    pcPeerId = "tdc-pc-" + Math.floor(1000 + Math.random() * 9000);
-    try {
-      pcPeer = new Peer(pcPeerId);
-      pcPeer.on("connection", (conn) => {
-        const statusEl = document.getElementById("pair-status-info");
-        if (statusEl) {
-          statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Phone Scanner Paired Successfully!</span>`;
-        }
-        showToast("Phone Scanner connected P2P successfully!", "success");
-
-        conn.on("data", (data) => {
-          if (data && data.barcode) {
-            handleRemoteScannedBarcode(data.barcode);
-          }
-        });
-
-        conn.on("close", () => {
-          if (statusEl) {
-            statusEl.innerHTML = `<span style="color:var(--warning);"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for connection...</span>`;
-          }
-          showToast("Phone Scanner disconnected.", "info");
-        });
-      });
-    } catch (e) {
-      console.warn("Delayed peer initialization failed:", e);
-    }
+    showToast("Cloud sync channel is initializing. Please try again in a few seconds.", "warning");
+    return;
   }
 
   const pairingUrl = window.location.origin + window.location.pathname + "?scanMode=true&peerId=" + pcPeerId;
 
+  // Render pairing warning on localhost
   const warningEl = document.getElementById("pairing-localhost-warning");
   if (warningEl) {
     if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
       warningEl.style.display = "block";
       warningEl.innerHTML = `
         <strong>⚠️ Localhost Testing Notice:</strong><br>
-        Your phone cannot resolve "localhost" (it refers to the phone itself). To test locally:
+        Your phone cannot connect to a "localhost" address directly. To pair locally:
         <ol style="margin: 4px 0 0 15px; padding: 0; line-height: 1.3;">
-          <li>Connect both phone and laptop to the <strong>same Wi-Fi network</strong>.</li>
+          <li>Connect both phone and laptop to the <strong>same Wi-Fi network / hotspot</strong>.</li>
           <li>Find your laptop's Wi-Fi IP address (run <code>ipconfig</code> in Command Prompt, e.g., <code>192.168.1.15</code>).</li>
           <li>Open this app on your laptop using that IP: <strong>http://[IP-Address]:8000/</strong>.</li>
           <li>Scan the QR code generated from that URL!</li>
@@ -4842,6 +4777,11 @@ function openPairScannerModal() {
            style="width: 170px; height: 170px; display: block; border: none; margin: 0 auto;"
            onerror="handleQrGenerationError()">
     `;
+  }
+
+  const statusEl = document.getElementById("pair-status-info");
+  if (statusEl) {
+    statusEl.innerHTML = `<span style="color:var(--success); font-weight:700;"><i class="fa-solid fa-circle-check"></i> Cloud Sync Active & Ready to Scan!</span>`;
   }
 
   openModal("modal-pair-scanner");
