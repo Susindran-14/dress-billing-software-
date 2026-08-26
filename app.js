@@ -129,7 +129,6 @@ const SEED_SETTINGS = {
 
 const SEED_USERS = [
   { username: "admin", role: "ADMIN", pin: "1111", name: "Administrator" },
-  { username: "manager", role: "MANAGER", pin: "2222", name: "Manager Ramesh" },
   { username: "cashier", role: "CASHIER", pin: "3333", name: "Cashier Priya" }
 ];
 
@@ -215,9 +214,12 @@ function loadStateFromStorage() {
   state.settings = DataStore.get("settings", {});
   state.heldBills = DataStore.get("held_bills", []);
 
-  state.users = DataStore.get("users", SEED_USERS);
+  state.users = DataStore.get("users", SEED_USERS).filter(u => u.username !== "manager");
   state.auditLogs = DataStore.get("audit_logs", []);
   state.currentUser = DataStore.get("current_user", SEED_USERS[0]); // Default to admin
+  if (state.currentUser && state.currentUser.username === "manager") {
+    state.currentUser = SEED_USERS[0];
+  }
   state.viewMode = DataStore.get("view_mode", "cashier");
   state.selectedProductSkus = [];
 
@@ -2692,6 +2694,7 @@ function validateUserSwitchPIN() {
   }
 
   if (user.pin !== pin) {
+    alert("Incorrect PIN code. Access Denied.");
     showToast("Invalid 4-digit passcode PIN. Try again.", "error");
     return;
   }
@@ -4499,6 +4502,7 @@ function submitLoginPin() {
   }
 
   if (user.pin !== pin) {
+    alert("Incorrect PIN code. Access Denied.");
     showToast("Incorrect passcode PIN. Access Denied.", "error");
     clearLoginPin();
     return;
